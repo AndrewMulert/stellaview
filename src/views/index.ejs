@@ -2,35 +2,4 @@
     
     <!--This is where the map will go-->
 
-    <!--Old Code
-    
-    
-    <% if (home && home.length > 0) { %>
-        <% home.forEach((home, index) => { %>
-            <%
-                let cardClasses = 'home-panel-card ';
-
-                if (home.order) {
-                    cardClasses += `position-${home.order.position}`;
-                }
-            %>
-            <div class="<%= cardClasses %>">
-                <picture>
-                    <source srcset="images/<%= home.image.src %>-small.webp" media="(max-width: 500px)">
-                    <source srcset="images/<%= home.image.src %>-medium.webp" media="(max-width: 1000px)">
-                    <img class="home-panel-card-image" src="images/<%= home.image.src %>-min.webp" alt="<%= home.image.alt %>" loading="lazy">
-                </picture>
-                <div class="home-panel-card-text">
-                    <h3><%= home.title %></h3>
-                    <% if (home.button && home.button.length > 0) { %>
-                        <% home.button.forEach(btn => { %>
-                    <a href="<%= btn.href %>" target="<%= btn.target %>"><%= btn.text %></a>
-                    <% }) %>
-                <% } %>
-                </div>
-            </div>
-        <% }) %>
-    <% } else {%>
-        <h2>"Oh! Uh... it's broken! I broke it" ~One-One</h2>
-    <% } %>-->
 </div>
