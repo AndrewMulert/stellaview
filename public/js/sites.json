@@ -1,0 +1,72 @@
+[
+  {
+    "name": "Cherry Springs State Park",
+    "lat": 41.6638,
+    "lon": -77.8232,
+    "bortle": 2,
+    "type": "State Park (Dark Sky Certified)"
+  },
+  {
+    "name": "Austin Dam Memorial Park",
+    "lat": 41.6225,
+    "lon": -78.0139,
+    "bortle": 3,
+    "type": "Public Dam Ruins (Open Public Access)"
+  },
+  {
+    "name": "Jackson Lake State Park",
+    "lat": 40.3725,
+    "lon": -104.0506,
+    "bortle": 2,
+    "type": "Reservoir/State Park"
+  },
+  {
+    "name": "Golden Gate Canyon State Park",
+    "lat": 39.8504,
+    "lon": -105.4228,
+    "bortle": 4,
+    "type": "Mountain Park (Near Denver)"
+  },
+  {
+    "name": "Craters of the Moon (Edge)",
+    "lat": 43.2,
+    "lon": -113.5,
+    "bortle": 2,
+    "type": "National Monument"
+    },
+    {
+        "name": "Magic Mountain Area",
+        "lat": 42.19,
+        "lon": -114.28,
+        "bortle": 3,
+        "type": "National Forest"
+    },
+    {
+    "name": "Death Valley National Park",
+    "lat": 36.4881,
+    "lon": -116.8911,
+    "bortle": 1,
+    "type": "National Park"
+  },
+  {
+    "name": "Joshua Tree - Hidden Valley",
+    "lat": 34.0125,
+    "lon": -116.1670,
+    "bortle": 2,
+    "type": "National Park"
+  },
+  {
+    "name": "Big Bend Ranch State Park",
+    "lat": 29.4706,
+    "lon": -103.9572,
+    "bortle": 1,
+    "type": "State Park"
+  },
+  {
+    "name": "Kissimmee Prairie Preserve",
+    "lat": 27.5855,
+    "lon": -81.0465,
+    "bortle": 3,
+    "type": "State Park"
+} 
+]

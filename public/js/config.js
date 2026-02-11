@@ -1,8 +1,11 @@
 export const DEFAULT_PREFS = {
-    maxDriveTime: 60,
-    minTemp: 40,
+    /*maxDriveTime: 60,*/
+    maxDriveTime: 500,
+    /*minTemp: 40,*/
+    minTemp: -20,
     maxTemp: 95,
-    maxBortle: 4,
+    /*maxBortle: 4,*/
+    maxBortle: 9,
     latestStayOut: "02:00",
     departureLeadTime: 30
 };
