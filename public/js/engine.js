@@ -9,8 +9,13 @@ import SunCalc from "https://esm.sh/suncalc@1.9.0";
 
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
-    let failureCounts = { clouds: 0, cold: 0, hot: 0};
+    /*A running talley of why locations may fail to determine the overall reason for failure*/
+    let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");
+
+
+    const decisionSpan = document.querySelector("#hero_decision");
+    decisionSpan.textContent = "Beginning our search, unfolding the map...";
 
     const times = SunCalc.getTimes(date, userLocation.lat, userLocation.lon);
     const startOfNight = times.night;
@@ -22,6 +27,22 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         windowEndTime.setHours(parseInt(hours), parseInt(minutes), 0);
 
         if (parseInt(hours) < 12) windowEndTime.setDate(windowEndTime.getDate() + 1);
+    }
+
+    const moonIllumination = SunCalc.getMoonIllumination(date).fraction;
+    const moonTimes = SunCalc.getMoonTimes(date, userLocation.lat, userLocation.lon);
+
+    const moonRise = moonTimes.rise;
+    const moonSet = moonTimes.set;
+
+    const moonUpAtStart = startOfNight > moonRise && startOfNight < moonSet;
+    const moonUpAtEnd = windowEndTime > moonRise && windowEndTime < moonSet;
+
+    const moonIsUp =  moonUpAtStart || moonUpAtEnd || moonTimes.alwaysUp;
+    
+    if (moonIllumination > 0.8 && moonIsUp){
+        console.log(`  -> Filtered: Moon too bright (${Math.round(moonIllumination * 100)}%) and visible during window.`);
+        return { sites: [], topFailure: 'moon' };
     }
 
     const results = await Promise.all(allDarkSites.map(async (site) => {
@@ -38,21 +59,42 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             return null;
         };
 
-        const weatherStatus = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
+        const [weatherStatus, aqiStatus] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site)]);
 
-        if (weatherStatus.success) {
+        if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-            return { ...site, travelTime: Math.round(travelTime)};
+            
+            let currentTemp = weatherStatus.avgTemp;
+            if (prefs.tempUnit === 'celsius') {
+                currentTemp = calculateFahrenheit(currentTemp);
+            }
+            
+            const darknessScore = (10 - site.bortle);
+            const altitudeBonus = (site.elevation || 0) / 1000;
+            const hazePenalty = aqiStatus.pm25 / 10;
+
+            const tempDiff = Math.abs(currentTemp - 68);
+            const comfortPenalty = tempDiff * 0.1;
+
+            let distInMiles = travelTime;
+            const distancePenalty = distInMiles / 60;
+
+            const finalScore = darknessScore + altitudeBonus - hazePenalty - comfortPenalty - distancePenalty;
+            return { ...site, travelTime: Math.round(travelTime), score: finalScore.toFixed(2), bestStartTime: startOfNight.toISOString()};
         } else {
-            console.log(`  -> Filtered: Weather/Temp constraints failed.`);
-            failureCounts[weatherStatus.reason]++;
+            const failureReason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
+            console.log(`  -> Filtered: ${failureReason} constraints failed.`);
+            failureCounts[failureReason.reason]++;
             return null;
         }
     }));
 
     const finalSites = results.filter(site => site !== null);
+    
+    const hasFailures = Object.values(failureCounts).some(v => v > 0);
+    const topFailure = hasFailures ? Object.keys(failureCounts).reduce((a, b) => failureCounts[a] > failureCounts[b] ? a : b) : 'distance';
 
-    return {sites: finalSites, topFailure: Object.keys(failureCounts).reduce((a, b) => failureCounts[a] > failureCounts[b] ? a : b)};
+    return {sites: finalSites, topFailure};
 }
 
 async function checkWeatherWindow(site, start, end, prefs) {
@@ -108,6 +150,27 @@ async function checkWeatherWindow(site, start, end, prefs) {
     }
 }
 
+async function checkAirQuality(site) {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${site.lat}&longitude=${site.lon}&hourly=pm2_5&forecast_days=1`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const currentPM25 = data.hourly.pm2_5[0];
+
+        if(currentPM25 > 35){
+            console.log(` !! AQI fail for ${site.name}: PM2.5 is ${currentPM25}`);
+            return { success: false, reason: 'aqi'};
+        }
+
+        return {success: true, pm25: currentPM25};
+    } catch (error) {
+        console.error("AQI API failed, skipping check", error);
+        return {success: true, pm25: 10};
+    }
+}
+
 function calculateDriveTime(loc1, loc2) {
     const R = 3958.8;
     const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
@@ -117,4 +180,19 @@ function calculateDriveTime(loc1, loc2) {
     const distanceMiles = R * c;
 
     return (distanceMiles / 45) * 60;
+}
+
+function calculateCelsius(temp) {
+    const celsius = (temp - 32) * (5/9);
+    return celsius;
+}
+
+function calculateFahrenheit(temp) {
+    const fahrenheit = (temp * 9/5) + 32;
+    return fahrenheit;
+}
+
+function calculateKilometers(distance) {
+    const kilometers = distance * 1.60934;
+    return kilometers;
 }

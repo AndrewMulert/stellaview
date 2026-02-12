@@ -2,6 +2,7 @@ console.log("!!! MAIN.JS IS LOADED !!!");
 
 import { findBestSites } from './engine.js';
 import { getActivePrefs } from './config.js';
+import { trainStellaBrain, predictWithBrain } from './brain.js';
 
 const yearSpan = document.querySelector("#year");
 const timeSpan = document.querySelector("#home_time");
@@ -34,6 +35,17 @@ function timeUpdater() {
 timeUpdater();
 setInterval(timeUpdater, 1000);
 
+let trainedModel = null;
+
+async function initAI() {
+    try{
+        trainedModel = await trainStellaBrain();
+        console.log("AI is online and ready.");
+    } catch (e) {
+        console.warn("AI failed to load. Falling back to Manual Engine")
+    }
+}
+
 async function runStargazingEngine() {
     console.log("Step 1: Engine function called");
 
@@ -42,41 +54,18 @@ async function runStargazingEngine() {
     console.log("Step 2: Prefs loaded:", prefs);
     const date = new Date();
 
-    const executeEngine = async (coords) => {
-        console.log(`Using Location: ${coords.lat}, ${coords.lon}`);
-        const allSites = await fetch('./js/sites.json').then(res => res.json());
-        const { sites, topFailure } = await findBestSites(date, coords, allSites, prefs);
-
-        console.log("Step 7: Algorithm complete.");
-
-        if (sites.length > 0) {
-            decisionSpan.textContent = "Tonight is a good night for stargazing.";
-            displayResults(results, prefs);
-        } else {
-            if (topFailure === 'clouds') {
-                decisionSpan.textContent = "Hazy vision. The stars continue their dance beyond the veil.";
-            } else if (topFailure === 'cold') {
-                decisionSpan.textContent = "Don't become a popsicle! Save the view for a warmer day.";
-            } else if (topFailure === 'hot') {
-                decisionSpan.textContent = "You're on fire! Stay indoors and avoid the heat tonight.";
-            } else {
-                decisionSpan.textContent = "The universe is calling, but it's a bit too far of a drive.";
-            }
-        }
-    }
-
     console.log("Step 3: Requesting location...");
     
     if (!navigator.geolocation) {
         console.error("Geolocation is not supported by this browser.");
-        await executeEngine(prefs.fallback_loc);
+        await updateUI(userLoc, prefs);
         return;
     }
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         console.log("Step 4: Location received!", pos.coords.latitude, pos.coords.longitude);
         const userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        await executeEngine(userLoc);
+        await updateUI(userLoc, prefs);
     },
     async (err) => {
         let errorType = "Unknown Error";
@@ -85,7 +74,7 @@ async function runStargazingEngine() {
         if (err.code === 3) errorType = "Timeout";
 
         console.warn(`Location Error: ${errorType}. Using fallback from config.`);
-        await executeEngine(prefs.fallback_loc);
+        await updateUI(prefs.fallback_loc, prefs);
     },
     {timeout: 8000, enableHighAccuracy: false}
 );
@@ -121,27 +110,6 @@ function displayResults(sites, prefs) {
     });
 };
 
-async function searchByCity(cityname) {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityname)}&format=json&limit=1`;
-
-    try {
-        const response = await fetch(runAllChains, {
-            headers: { 'User-Agent': 'StellaView-App' }
-        });
-        const data = await response.json();
-
-        if (data.length > 0) {
-            return {
-                lat: parseFloat(data[0].lat),
-                lon: parseFloat(data[0].lon),
-                name: data[0].display_name
-            };
-        }
-    } catch (err) {
-        console.error("Search failed", err);
-    }
-};
-
 async function handleSearch() {
     const query = document.querySelector("#location_input").value;
     if (!query) return;
@@ -159,10 +127,8 @@ async function handleSearch() {
             console.log("Found location:", data[0].display_name);
 
             const prefs = await getActivePrefs();
-            const allSites = await fetch('./js/sites.json').then(res => res.json());
+            await updateUI(newCoords, prefs);
 
-            const results = await findBestSites(new Date(), newCoords, allSites, prefs);
-            displayResults(results, prefs);
         } else {
             alert("Location not found. Try a different city!");
         }
@@ -171,12 +137,50 @@ async function handleSearch() {
     }
 }
 
+const updateUI = async (coords, prefs) => {
+    console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
+    const date = new Date();
+    const allSites = await fetch('./js/sites.json').then(res => res.json());
+
+    let results;
+
+    if (trainedModel) {
+        results = await predictWithBrain(trainedModel, allSites, coords, prefs);
+    } else {
+        results = await findBestSites(date, coords, allSites, prefs);
+    }
+
+    const { sites, topFailure} = results;
+
+    const container = document.querySelector("#results-container");
+    /* if (container) container.innerHTML = ""; */
+
+    if (sites.length > 0) {
+        decisionSpan.textContent = "Tonight is a good night for stargazing.";
+        displayResults(sites, prefs);
+    } else {
+        const messages = {
+            clouds: "Hazy vision. The stars continue their dance beyond the veil.",
+            cold: "Don't become a popsicle! Save the view for a warmer day",
+            hot: "You're on fire! Stay indoors and avoid the heat tonight.",
+            moon: "The Man on the Moon gives his greetings and illuminates the landscape",
+            distance: "The universe is calling, but it's a bit too far of a drive.",
+            aqi: "Smoke and mirrors. The air is too thick for a clear view tonight."
+        };
+        decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
+    }
+};
+
 document.addEventListener('click', (e) => {
-    if (e.target.id === 'search_btn') handleSearch();
+    if (e.target.closest('#search_btn')) {
+        handleSearch()
+    }
 });
 
 document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
 });
+
+initAI();
 
 runStargazingEngine();

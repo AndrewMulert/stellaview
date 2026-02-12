@@ -5,4 +5,37 @@ h1, h2, h3, h4, p, input, a {
 
 ul {
   list-style-type: none;
+}
+
+html {
+  background-color: #00131A;
+}
+
+footer {
+  background-color: #00464D;
+}
+footer p {
+  color: #ffffff;
+}
+
+.hero {
+  background-image: linear-gradient(#008571, #00464D);
+  background-color: #00464D;
+}
+.hero h2 {
+  color: #ffffff;
+}
+.hero button {
+  background-color: transparent;
+  border: none;
+}
+
+.nav_clock_time {
+  color: #ffffff;
+  background-image: linear-gradient(#00464D, #00131A);
+  background-color: #00131A;
+}
+
+#nav_profile {
+  background-color: #59FFE5;
 }/*# sourceMappingURL=base.css.map */

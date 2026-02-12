@@ -1,6 +1,7 @@
 export const DEFAULT_PREFS = {
     /*maxDriveTime: 60,*/
     maxDriveTime: 500,
+    tempUnit: 'fahrenheit',
     /*minTemp: 40,*/
     minTemp: -20,
     maxTemp: 95,

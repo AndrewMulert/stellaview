@@ -7,6 +7,7 @@ $dark-secondary: #00464D;
 $darker-secondary: #00131A;
 $medium-grey: #353535;
 $dark-grey: #151515;
+$white: #ffffff;
 
 h1, h2, h3, h4, p, input, a {
     font-family: 'Google Sans Flex', 'Arial';
@@ -14,4 +15,41 @@ h1, h2, h3, h4, p, input, a {
 
 ul{
     list-style-type: none;
+}
+
+html{
+    background-color: $darker-secondary;
+}
+
+footer{
+    background-color: $dark-secondary;
+    & p{
+        color: $white;
+    }
+}
+
+.hero{
+    background-image: linear-gradient($medium-secondary, $dark-secondary);
+    background-color: $dark-secondary;
+
+    & h2{
+        color: $white;
+    }
+
+   button{
+        background-color: transparent;
+        border: none;
+    }
+}
+
+.nav_clock_time{
+    color: $white;
+    background-image: linear-gradient($dark-secondary, $darker-secondary);
+    background-color: $darker-secondary;
+}
+
+#nav{
+    &_profile{
+        background-color: $base-secondary;
+    }
 }
