@@ -1,13 +1,38 @@
-console.log("!!! MAIN.JS IS LOADED !!!"); // Put this on LINE 1
+console.log("!!! MAIN.JS IS LOADED !!!");
 
 import { findBestSites } from './engine.js';
 import { getActivePrefs } from './config.js';
 
 const yearSpan = document.querySelector("#year");
+const timeSpan = document.querySelector("#home_time");
+const decisionSpan = document.querySelector("#hero_decision");
 
 if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
+};
+
+if (decisionSpan) {
+    decisionSpan.textContent = "The universe is calling; let’s find where it’s clearest.";
 }
+
+function timeUpdater() {
+    if (timeSpan) {
+        const now = new Date();
+        let hours = now.getHours();
+        let minutes = now.getMinutes();
+        const meridiem = hours >= 12 ? 'PM': 'AM';
+
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+
+        const displayMinutes = minutes < 10? `0${minutes}` : minutes;
+
+        timeSpan.textContent = `${hours}:${displayMinutes} ${meridiem}`;
+    }
+};
+
+timeUpdater();
+setInterval(timeUpdater, 1000);
 
 async function runStargazingEngine() {
     console.log("Step 1: Engine function called");
@@ -17,34 +42,53 @@ async function runStargazingEngine() {
     console.log("Step 2: Prefs loaded:", prefs);
     const date = new Date();
 
+    const executeEngine = async (coords) => {
+        console.log(`Using Location: ${coords.lat}, ${coords.lon}`);
+        const allSites = await fetch('./js/sites.json').then(res => res.json());
+        const { sites, topFailure } = await findBestSites(date, coords, allSites, prefs);
+
+        console.log("Step 7: Algorithm complete.");
+
+        if (sites.length > 0) {
+            decisionSpan.textContent = "Tonight is a good night for stargazing.";
+            displayResults(results, prefs);
+        } else {
+            if (topFailure === 'clouds') {
+                decisionSpan.textContent = "Hazy vision. The stars continue their dance beyond the veil.";
+            } else if (topFailure === 'cold') {
+                decisionSpan.textContent = "Don't become a popsicle! Save the view for a warmer day.";
+            } else if (topFailure === 'hot') {
+                decisionSpan.textContent = "You're on fire! Stay indoors and avoid the heat tonight.";
+            } else {
+                decisionSpan.textContent = "The universe is calling, but it's a bit too far of a drive.";
+            }
+        }
+    }
+
     console.log("Step 3: Requesting location...");
     
     if (!navigator.geolocation) {
         console.error("Geolocation is not supported by this browser.");
+        await executeEngine(prefs.fallback_loc);
         return;
     }
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         console.log("Step 4: Location received!", pos.coords.latitude, pos.coords.longitude);
         const userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        await executeEngine(userLoc);
+    },
+    async (err) => {
+        let errorType = "Unknown Error";
+        if (err.code === 1) errorType = "Permission Denied";
+        if (err.code === 2) errorType = "Position Unavailable";
+        if (err.code === 3) errorType = "Timeout";
 
-        console.log("Step 5: Fetching sites.json...");
-        const allSites = await fetch('./js/sites.json').then(res => res.json());
-
-        console.log("Step 6: Running engine algorithm...");
-        const results = await findBestSites(date, userLoc, allSites, prefs);
-
-        console.log("Step 7: Algorithm complete.");
-
-        if (results.length === 0) {
-            console.warn("No sites matched your criteria. (They are likely too far away!)");
-        } else {
-            console.log(`Success! Found ${results.length} matching sites.`);
-            displayResults(results, prefs);
-        }
-    }, (err) => {
-        console.error("Location Error:", err.message);
-    }, { timeout: 10000 });
+        console.warn(`Location Error: ${errorType}. Using fallback from config.`);
+        await executeEngine(prefs.fallback_loc);
+    },
+    {timeout: 8000, enableHighAccuracy: false}
+);
 }
 
 function displayResults(sites, prefs) {
@@ -59,7 +103,7 @@ function displayResults(sites, prefs) {
         leaveDate.setMinutes(leaveDate.getMinutes()-totalBuffer);
 
         const card = document.createElement("div");
-        card.classname = "site-card";
+        card.className = "site-card";
         card.innerHTML = `
             <h3>${site.name}</h3>
             <p><strong>Bortle:</strong> ${site.bortle}</p>

@@ -9,6 +9,7 @@ import SunCalc from "https://esm.sh/suncalc@1.9.0";
 
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
+    let failureCounts = { clouds: 0, cold: 0, hot: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");
 
     const times = SunCalc.getTimes(date, userLocation.lat, userLocation.lon);
@@ -37,20 +38,21 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             return null;
         };
 
-        const isWeatherGood = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
+        const weatherStatus = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
 
-        if (!isWeatherGood) {
+        if (weatherStatus.success) {
+            console.log(`  => SUCCESS: ${site.name} passed all checks.`);
+            return { ...site, travelTime: Math.round(travelTime)};
+        } else {
             console.log(`  -> Filtered: Weather/Temp constraints failed.`);
+            failureCounts[weatherStatus.reason]++;
             return null;
         }
-
-        console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-        if (isWeatherGood) {
-            return { ...site, travelTime: Math.round(travelTime), bestStartTime: startOfNight};
-        };
     }));
 
-    return results.filter(site => site !== null);
+    const finalSites = results.filter(site => site !== null);
+
+    return {sites: finalSites, topFailure: Object.keys(failureCounts).reduce((a, b) => failureCounts[a] > failureCounts[b] ? a : b)};
 }
 
 async function checkWeatherWindow(site, start, end, prefs) {
@@ -82,17 +84,20 @@ async function checkWeatherWindow(site, start, end, prefs) {
         const tooCloudy = cloudValues.some(clouds => clouds > 20);
         if (tooCloudy) {
             console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${maxCloudObserved}%).`);
+            return { success: false, reason: 'clouds' };
         }
         const tooCold = tempValues.some(temp => temp < prefs.minTemp);
         if (tooCold) {
             console.log(`  !! Weather fail for ${site.name}: It's too cold (${minTempObserved}°).`);
+            return { success: false, reason: 'cold' };
         }
         const tooHot = tempValues.some(temp => temp > prefs.maxTemp);
         if (tooHot) {
             console.log(`  !! Weather fail for ${site.name}: It's too hot (${maxTempObserved}°).`);
+            return { success: false, reason: 'hot' };
         }
 
-        const demoMode = false;
+        const demoMode = true;
 
         if (demoMode) return true;
 

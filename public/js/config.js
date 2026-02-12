@@ -7,7 +7,8 @@ export const DEFAULT_PREFS = {
     /*maxBortle: 4,*/
     maxBortle: 9,
     latestStayOut: "02:00",
-    departureLeadTime: 30
+    departureLeadTime: 30,
+    fallback_loc: {lat: 42.56, lon: -114.41}
 };
 
 /**

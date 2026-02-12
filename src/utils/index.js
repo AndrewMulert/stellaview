@@ -57,16 +57,21 @@ const getNav = () => {
                 <div class="nav_search_bar">
                     <input type="text" id="location_input" placeholder="Search a city">
                     <button id="search_btn">
-                        <svg id="search_svg" width="45px" height="45px">
-                            <image width="45px" height="45px" href="/images/icon_search.svg" alt="Search"></image>
+                        <svg id="search_svg" width="30px" height="30px">
+                            <image width="30px" height="30px" href="/images/icon_search.svg" alt="Search"></image>
                         </svg>
                     </button>
                 </div>
             </li>
+            <li class="nav_link_container" id="nav_clock">
+                <div class="nav_clock_time">
+                    <h3 id="home_time"></h3>
+                </div>
+            </li>
             <li class="nav_link_container" id="nav_profile">
                 <a href="/" class="nav_links" id="profile_menu">
-                    <svg id="profile_svg" width="45px" height="45px">
-                        <image width="45px" height="45px" href="/images/icon_user.svg"></image>
+                    <svg id="profile_svg" width="30px" height="30px">
+                        <image width="30px" height="30px" href="/images/icon_user.svg"></image>
                     </svg>
                 </a>
             </li>
