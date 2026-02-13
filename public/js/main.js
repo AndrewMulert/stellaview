@@ -42,6 +42,7 @@ async function initAI() {
         trainedModel = await trainStellaBrain();
         console.log("AI is online and ready.");
     } catch (e) {
+        console.error("CRITICAL AI ERROR:", e)
         console.warn("AI failed to load. Falling back to Manual Engine")
     }
 }
@@ -87,9 +88,15 @@ function displayResults(sites, prefs) {
     container.innerHTML = "";
 
     sites.forEach(site => {
-        const leaveDate = new Date(site.bestStartTime);
+        const startTime = site.bestStartTime ? new Date(site.bestStartTime) : new Date();
+
+        const leadTime = prefs.departureLeadTime || 30;
         const totalBuffer = site.travelTime + (prefs.departureLeadTime || 30);
-        leaveDate.setMinutes(leaveDate.getMinutes()-totalBuffer);
+
+        const leaveDate = new Date(startTime.getTime());
+        leaveDate.setMinutes(leaveDate.getMinutes() - totalBuffer);
+
+        const timeString = isNaN(leaveDate.getTime()) ? "TBD" : leaveDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit' });
 
         const card = document.createElement("div");
         card.className = "site-card";
@@ -153,12 +160,13 @@ const updateUI = async (coords, prefs) => {
     const { sites, topFailure} = results;
 
     const container = document.querySelector("#results-container");
-    /* if (container) container.innerHTML = ""; */
+    if (container) container.innerHTML = "";
 
     if (sites.length > 0) {
         decisionSpan.textContent = "Tonight is a good night for stargazing.";
         displayResults(sites, prefs);
     } else {
+        const reason = topFailure || "clouds";
         const messages = {
             clouds: "Hazy vision. The stars continue their dance beyond the veil.",
             cold: "Don't become a popsicle! Save the view for a warmer day",
@@ -168,6 +176,8 @@ const updateUI = async (coords, prefs) => {
             aqi: "Smoke and mirrors. The air is too thick for a clear view tonight."
         };
         decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
+
+        console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
     }
 };
 
@@ -181,6 +191,8 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
 });
 
-initAI();
+window.addEventListener('load', () => {
+    initAI();
+})
 
 runStargazingEngine();

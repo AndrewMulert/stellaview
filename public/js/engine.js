@@ -1,4 +1,5 @@
 import SunCalc from "https://esm.sh/suncalc@1.9.0";
+import { calculateDriveTime, calculateFahrenheit,  normalizeInputs} from './utils.js';
 
 /**
 * @param {Date} date
@@ -84,7 +85,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         } else {
             const failureReason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
             console.log(`  -> Filtered: ${failureReason} constraints failed.`);
-            failureCounts[failureReason.reason]++;
+            failureCounts[failureReason]++;
             return null;
         }
     }));
@@ -97,7 +98,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     return {sites: finalSites, topFailure};
 }
 
-async function checkWeatherWindow(site, start, end, prefs) {
+export async function checkWeatherWindow(site, start, end, prefs) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${site.lat}&longitude=${site.lon}&hourly=temperature_2m,cloud_cover&forecast_days=2&timezone=auto`;
 
     try {
@@ -139,18 +140,26 @@ async function checkWeatherWindow(site, start, end, prefs) {
             return { success: false, reason: 'hot' };
         }
 
-        const demoMode = true;
+        const avgClouds = cloudValues.reduce((a, b) => a + b, 0) / cloudValues.length;
+        const avgTemp = tempValues.reduce((a, b) => a + b, 0) / tempValues.length;
+
+        const demoMode = false;
 
         if (demoMode) return true;
 
-        return !tooCloudy && !tooCold && !tooHot
+        
+        return { 
+            success: true, 
+            avgClouds: avgClouds, 
+            avgTemp: avgTemp 
+        };
     } catch (error) {
         console.error("weather API failed", error);
         return false;
     }
 }
 
-async function checkAirQuality(site) {
+export async function checkAirQuality(site) {
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${site.lat}&longitude=${site.lon}&hourly=pm2_5&forecast_days=1`;
 
     try {
@@ -171,25 +180,9 @@ async function checkAirQuality(site) {
     }
 }
 
-function calculateDriveTime(loc1, loc2) {
-    const R = 3958.8;
-    const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
-    const dLon = (loc2.lon - loc1.lon) * Math.PI /180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distanceMiles = R * c;
-
-    return (distanceMiles / 45) * 60;
-}
-
 function calculateCelsius(temp) {
     const celsius = (temp - 32) * (5/9);
     return celsius;
-}
-
-function calculateFahrenheit(temp) {
-    const fahrenheit = (temp * 9/5) + 32;
-    return fahrenheit;
 }
 
 function calculateKilometers(distance) {

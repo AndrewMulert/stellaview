@@ -1,4 +1,4 @@
-function generateMockHistory(numSamples = 500) {
+export function generateMockHistory(numSamples = 500) {
     const trainingData = [];
 
     for (let i = 0; 1 < numSamples; i++){
