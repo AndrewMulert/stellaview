@@ -23,13 +23,13 @@ export async function getBortleFromRadiance(lat, lon){
 export async function getNearbyDarkPlaces(lat, lon, radiusKm) {
     const radiusMeters = radiusKm * 1000;
 
-    const query = `[out:json][timeout:25];
+    const query = `[out:json][timeout:60];
     (
-        nwr["boundary"~"national_park|wilderness_area"](around:${radiusMeters},${lat},${lon});
-        nwr["natural"~"peak|volcano|plateau"](around:${radiusMeters},${lat},${lon});
-        nwr["landuse"="conservation"](around:${radiusMeters},${lat},${lon});
+        nwr["boundary"~"national_park|wilderness_area"](around:40000,${lat},${lon});
+        nwr["natural"~"peak|plateau"](around:40000,${lat},${lon});
+        nwr["landuse"="conservation"](around:40000,${lat},${lon});
     );
-    out center 40;`;
+    out center 20;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 

@@ -104,7 +104,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs) {
             };
 
             const moonData = { illumination: 0.1 };
-            const inputData = normalizeInputs(site, brainStats, moonData);
+            const inputData = normalizeInputs(site, brainStats, moonData, travelTime, prefs);
 
             const inputTensor = tf.tensor2d([inputData]);
             const prediction = model.predict(inputTensor);
