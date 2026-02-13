@@ -1,6 +1,6 @@
 import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js';
 import { checkWeatherWindow, checkAirQuality } from './engine.js';
-import { calculateDriveTime, calculateFahrenheit,  normalizeInputs} from './utils.js';
+import { calculateDriveTime, normalizeInputs} from './utils.js';
 /*import { generateMockHistory } from './trainer.js';*/
 
 const tf = window.tf;
@@ -61,7 +61,7 @@ export async function trainStellaBrain() {
 
     console.log("Brain training started...");
     await model.fit(inputs, outputs, {
-        epochs: 50,
+        epochs: 30,
         callbacks: {
             onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}`)
         }
@@ -75,6 +75,7 @@ export async function trainStellaBrain() {
 }
 
 export async function predictWithBrain(model, allSites, userLoc, prefs) {
+    const SEARCH_RADIUS_KM = 300;
     let failureCounts = {clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     const date = new Date();
 

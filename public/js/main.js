@@ -1,8 +1,9 @@
 console.log("!!! MAIN.JS IS LOADED !!!");
 
-import { findBestSites } from './engine.js';
+import { findBestSites, findWeeklyOutlook, renderWeeklyOutlook } from './engine.js';
 import { getActivePrefs } from './config.js';
 import { trainStellaBrain, predictWithBrain } from './brain.js';
+import * as api from "./api.js";
 
 const yearSpan = document.querySelector("#year");
 const timeSpan = document.querySelector("#home_time");
@@ -39,11 +40,22 @@ let trainedModel = null;
 
 async function initAI() {
     try{
-        trainedModel = await trainStellaBrain();
-        console.log("AI is online and ready.");
+        const savedModels = await tf.io.listModels();
+
+        if (savedModels['localstorage://stella-model']) {
+            console.log("💾 Loading saved brain from storage...");
+            trainedModel = await tf.loadLayersModel('localstorage://stella-model');
+            console.log("⭐ AI is online (Loaded from disk).");
+        } else {
+            console.log("🎓 No saved brain found. Training a new one...");
+            trainedModel = await trainStellaBrain();
+            await trainedModel.save('localstorage://stella-model')
+            console.log("⭐ AI is online and saved for future use.");
+        }
     } catch (e) {
         console.error("CRITICAL AI ERROR:", e)
         console.warn("AI failed to load. Falling back to Manual Engine")
+        trainedModel = null;
     }
 }
 
@@ -89,14 +101,10 @@ function displayResults(sites, prefs) {
 
     sites.forEach(site => {
         const startTime = site.bestStartTime ? new Date(site.bestStartTime) : new Date();
-
-        const leadTime = prefs.departureLeadTime || 30;
-        const totalBuffer = site.travelTime + (prefs.departureLeadTime || 30);
+        const buffer = (site.travelTime || 0) + (prefs.departureLeadTime || 30);
 
         const leaveDate = new Date(startTime.getTime());
-        leaveDate.setMinutes(leaveDate.getMinutes() - totalBuffer);
-
-        const timeString = isNaN(leaveDate.getTime()) ? "TBD" : leaveDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit' });
+        leaveDate.setMinutes(leaveDate.getMinutes() - buffer);
 
         const card = document.createElement("div");
         card.className = "site-card";
@@ -147,7 +155,8 @@ async function handleSearch() {
 const updateUI = async (coords, prefs) => {
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
     const date = new Date();
-    const allSites = await fetch('./js/sites.json').then(res => res.json());
+    const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, prefs.maxDriveTime);
+    console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);
 
     let results;
 
@@ -179,6 +188,13 @@ const updateUI = async (coords, prefs) => {
 
         console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
     }
+
+    const shortlisted = sites.length > 0 ? sites : allSites.filter(s => {
+        return true;
+    });
+
+    const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs);
+    renderWeeklyOutlook(weeklyData, prefs);
 };
 
 document.addEventListener('click', (e) => {

@@ -14,14 +14,14 @@ export function calculateFahrenheit(temp) {
     return fahrenheit;
 }
 
-export function normalizeInputs(site, weather, moon) {
-    return [
-        (10 - site.bortle) / 10,
-        (100 - weather.clouds) / 100,
-        Math.max(0, (50 - weather.pm25) / 50),
-        (1 - moon.illumination),
-        1 - (Math.abs(weather.temp - 68) /40),
-        (site.publicRating || 3) / 5,
-        (site.userRating || 3) / 5
-    ];
+export function normalizeInputs(site, weather, moonIllum, travelTime, prefs) {
+    const normBortle = (10 - site.bortle) / 10;
+    const normClouds = (100 - weather.avgClouds) / 100;
+    const normAQI = Math.max(0, (50 - weather.pm25 || 10) / 50);
+    const normMoon = (1 - moonIllum)
+    const tempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
+    const normTemp =  1 - (Math.abs(tempF - 68) /40);
+    const normPublic =  (site.rating || 0) / 5;
+    const normUser = (site.userRating || 0) / 5;
+    return [normBortle, normClouds, normAQI, normMoon, normTemp, normPublic, normUser];
 }

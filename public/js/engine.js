@@ -1,13 +1,37 @@
 import SunCalc from "https://esm.sh/suncalc@1.9.0";
-import { calculateDriveTime, calculateFahrenheit,  normalizeInputs} from './utils.js';
+import { calculateDriveTime, calculateFahrenheit} from './utils.js';
+import * as api from './api.js';
 
 /**
-* @param {Date} date
-* @param {Object} userLocation
-* @param {Array} allDarkSites
+* @param {Object} site
+* @param {Object} weatherStatus
+* @param {number} travelTime
 * @param {Object} prefs 
+* @param {number} moonIllum
+* @param {Object} aqiStatus
 */
 
+function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null) {
+    let currentTemp = weatherStatus.avgTemp;
+    if (prefs.tempUnit === 'celsius') {
+        currentTemp = calculateFahrenheit(currentTemp);
+    }
+
+    const darknessScore = (10 - site.bortle);
+    const altitudeBonus = (site.elevation || 0) / 1000;
+
+    const pm25 = aqiStatus ? aqiStatus.pm25 : 10;
+    const hazePenalty = pm25 / 10;
+
+    const tempDiff = Math.abs(currentTemp - 68);
+    const comfortPenalty = tempDiff * 0.1;
+    const distancePenalty = travelTime / 60;
+
+    const moonPenalty = moonIllum * 2;
+
+    const finalScore = darknessScore + altitudeBonus - hazePenalty - comfortPenalty - distancePenalty - moonPenalty;
+    return finalScore.toFixed(2);
+}
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     /*A running talley of why locations may fail to determine the overall reason for failure*/
@@ -16,7 +40,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 
 
     const decisionSpan = document.querySelector("#hero_decision");
-    decisionSpan.textContent = "Beginning our search, unfolding the map...";
+    if (decisionSpan) decisionSpan.textContent = "Beginning our search, unfolding the map...";
 
     const times = SunCalc.getTimes(date, userLocation.lat, userLocation.lon);
     const startOfNight = times.night;
@@ -30,19 +54,13 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         if (parseInt(hours) < 12) windowEndTime.setDate(windowEndTime.getDate() + 1);
     }
 
-    const moonIllumination = SunCalc.getMoonIllumination(date).fraction;
+    const moonIllum = SunCalc.getMoonIllumination(date).fraction;
     const moonTimes = SunCalc.getMoonTimes(date, userLocation.lat, userLocation.lon);
+    const moonIsUp =  (startOfNight > moonTimes.rise && startOfNight < moonTimes.set) || moonTimes.alwaysUp;
 
-    const moonRise = moonTimes.rise;
-    const moonSet = moonTimes.set;
-
-    const moonUpAtStart = startOfNight > moonRise && startOfNight < moonSet;
-    const moonUpAtEnd = windowEndTime > moonRise && windowEndTime < moonSet;
-
-    const moonIsUp =  moonUpAtStart || moonUpAtEnd || moonTimes.alwaysUp;
     
-    if (moonIllumination > 0.8 && moonIsUp){
-        console.log(`  -> Filtered: Moon too bright (${Math.round(moonIllumination * 100)}%) and visible during window.`);
+    if (moonIllum > 0.8 && moonIsUp){
+        console.log(`  -> Filtered: Moon too bright (${Math.round(moonIllum * 100)}%) and visible during window.`);
         return { sites: [], topFailure: 'moon' };
     }
 
@@ -64,120 +82,186 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 
         if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-            
-            let currentTemp = weatherStatus.avgTemp;
-            if (prefs.tempUnit === 'celsius') {
-                currentTemp = calculateFahrenheit(currentTemp);
-            }
-            
-            const darknessScore = (10 - site.bortle);
-            const altitudeBonus = (site.elevation || 0) / 1000;
-            const hazePenalty = aqiStatus.pm25 / 10;
-
-            const tempDiff = Math.abs(currentTemp - 68);
-            const comfortPenalty = tempDiff * 0.1;
-
-            let distInMiles = travelTime;
-            const distancePenalty = distInMiles / 60;
-
-            const finalScore = darknessScore + altitudeBonus - hazePenalty - comfortPenalty - distancePenalty;
-            return { ...site, travelTime: Math.round(travelTime), score: finalScore.toFixed(2), bestStartTime: startOfNight.toISOString()};
+            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus );
+            return { ...site, travelTime: Math.round(travelTime), score: score, bestStartTime: startOfNight.toISOString()};
         } else {
-            const failureReason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
-            console.log(`  -> Filtered: ${failureReason} constraints failed.`);
-            failureCounts[failureReason]++;
+            const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
+            console.log(`  -> Filtered: ${reason} constraints failed.`);
+            failureCounts[reason]++;
             return null;
         }
     }));
 
     const finalSites = results.filter(site => site !== null);
     
-    const hasFailures = Object.values(failureCounts).some(v => v > 0);
-    const topFailure = hasFailures ? Object.keys(failureCounts).reduce((a, b) => failureCounts[a] > failureCounts[b] ? a : b) : 'distance';
+    const topFailure = Object.keys(failureCounts).reduce((a, b) => failureCounts[a] > failureCounts[b] ? a : b, 'distance');
 
     return {sites: finalSites, topFailure};
 }
 
-export async function checkWeatherWindow(site, start, end, prefs) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${site.lat}&longitude=${site.lon}&hourly=temperature_2m,cloud_cover&forecast_days=2&timezone=auto`;
+export async function findWeeklyOutlook(userLoc, allSites, prefs) {
+    const nearbySites = allSites.filter(site => {
+        const travelTime = calculateDriveTime(userLoc, site);
+        return travelTime <= (prefs.maxDriveTime || 120);
+    });
 
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
+    console.log(`Weekly Outlook: Only checking ${nearbySites.length} nearby sites.`);
 
-        const startTime = start.getTime();
-        const endTime = end.getTime();
+    const weeklyResults = [];
 
-        const windowIndices = data.hourly.time
-            .map((t, index) => ({ time: new Date(t).getTime(), index}))
-            .filter(item => item.time >= startTime && item.time <= endTime);
-            console.log(`Weather Window for ${site.name}: Found ${windowIndices.length} hourly data points.`);
+    for (const site of nearbySites) {
+        
+        try {
+            const weatherData = await api.getWeatherData(site.lat, site.lon, 8);
+            const travelTime = calculateDriveTime(userLoc, site);
 
-        if (windowIndices.length === 0) {
-            console.error(`    !! No weather data found for ${site.name} in the night window.`);
-            return false; 
+            for (let i = 0; i < 7; i ++) {
+                const checkDate = new Date();
+                checkDate.setUTCDate(checkDate.getUTCDate() + i);
+                checkDate.setUTCHours(12, 0, 0, 0);
+
+                const times = SunCalc.getTimes(checkDate, site.lat, site.lon);
+
+                const nightStart = times.nauticalDusk;
+                const nightEnd = times.nauticalDawn;
+
+                if (!nightStart || !nightEnd || nightStart >= nightEnd) {
+                    if (nightStart >= nightEnd) {
+                        nightEnd.setDate(nightEnd.getDate() + 1);
+                    }
+                };
+
+                const moonIllum = SunCalc.getMoonIllumination(checkDate).fraction;
+
+                const weatherStatus = await checkWeatherWindow(site, nightStart, nightEnd, prefs, weatherData)
+
+                if (weatherStatus.success) {
+                    const mockAqi = {success: true, pm25: 10};
+                    const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, mockAqi);
+                    weeklyResults.push({
+                        date: checkDate.toDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric' }),
+                        siteName: site.name,
+                        score: score,
+                        avgTemp: Math.round(weatherStatus.avgTemp),
+                        condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy'
+                });
+                }
+            }
+        } catch (e) {
+            console.error(`Weekly fetch failed for ${site.name}`, e);
         }
+    } 
+    return weeklyResults;
+}
 
-        const cloudValues = windowIndices.map(item => data.hourly.cloud_cover[item.index]);
-        const tempValues = windowIndices.map(item => data.hourly.temperature_2m[item.index]);
-        const maxCloudObserved = Math.max(...cloudValues);
-        const minTempObserved = Math.min(...tempValues);
-        const maxTempObserved = Math.max(...tempValues);
+export function renderWeeklyOutlook(weeklyData, prefs) {
+    const container = document.getElementById('weekly_outlook');
+    const grid = document.getElementById('weekly_grid');
 
-        const tooCloudy = cloudValues.some(clouds => clouds > 20);
-        if (tooCloudy) {
-            console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${maxCloudObserved}%).`);
-            return { success: false, reason: 'clouds' };
-        }
-        const tooCold = tempValues.some(temp => temp < prefs.minTemp);
-        if (tooCold) {
-            console.log(`  !! Weather fail for ${site.name}: It's too cold (${minTempObserved}°).`);
-            return { success: false, reason: 'cold' };
-        }
-        const tooHot = tempValues.some(temp => temp > prefs.maxTemp);
-        if (tooHot) {
-            console.log(`  !! Weather fail for ${site.name}: It's too hot (${maxTempObserved}°).`);
-            return { success: false, reason: 'hot' };
-        }
+    if(!weeklyData || weeklyData.length === 0) {
+        container.classList.add('hidden');
+        return
+    }
 
-        const avgClouds = cloudValues.reduce((a, b) => a + b, 0) / cloudValues.length;
-        const avgTemp = tempValues.reduce((a, b) => a + b, 0) / tempValues.length;
+    container.innerHTML = "";
 
-        const demoMode = false;
+    container.classList.remove('hidden');
+    grid.innerHTML = '';
 
-        if (demoMode) return true;
+    const counts = weeklyData.reduce((acc, curr) => {
+        acc[curr.siteName] = (acc[curr.siteName] || 0) + 1;
+        return acc;
+    }, {});
+
+    const championName = Object.keys(counts).reduce((a, b) => counts[a] >  counts[b] ? a : b);
+
+    weeklyData.forEach(item => {
+        const unit = prefs.tempUnit === 'celsius' ? 'C' : 'F';
+        const card = document.createElement('div');
+        const isChamp = item.siteName === championName;
+        card.className =   `weekly-card ${item.siteName === championName ? 'champion-highlight' : ''}`;
+
+        card.innerHTML = `
+            <div class="date">${item.date}</div>
+            <div class="site-name">${item.siteName}</div>
+            <div class="temp">${item.avgTemp} °${unit}</div>
+            <div class="score-badge">Score: ${item.score}</div>
+            ${isChamp ? '<div class="champ-label">Weekly Best</div>' : ''}
+        `;
+        grid.appendChild(card);
+    });
+}
+
+export async function checkWeatherWindow(site, start, end, prefs, data = null) {
+    let weatherData = data;
+
+    if (!weatherData) {
+        weatherData = await api.getWeatherData(site.lat, site.lon, 2);
+    }
+
+    if (!weatherData || !weatherData.hourly) return { success: false, reason: 'nodata'};
+
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
+
+    console.log(`Checking ${site.name}: Window [${new Date(startTime).toISOString()}] to [${new Date(endTime).toISOString()}]`);
+
+    const windowIndices = weatherData.hourly.time
+        .map((t, index) => { const timeStr = t.endsWith('Z') ? t : t + ':00.000Z'; return {time: new Date(timeStr).getTime(), index}})
+        .filter(item => { return item.time >= startTime && item.time <= endTime});
+        console.log(`Weather Window for ${site.name}: Found ${windowIndices.length} hourly data points.`);
+
+    if (windowIndices.length === 0) {
+        console.error(`    !! No weather data found for ${site.name} in the night window.`);
+        return {success: false, reason: 'out_of_range'}; 
+    }
+
+    const cloudValues = windowIndices.map(item => weatherData.hourly.cloud_cover[item.index]);
+    const tempValues = windowIndices.map(item => weatherData.hourly.temperature_2m[item.index]);
+    const maxCloudObserved = Math.max(...cloudValues);
+    const minTempObserved = Math.min(...tempValues);
+    const maxTempObserved = Math.max(...tempValues);
+
+    const tooCloudy = cloudValues.some(clouds => clouds > 20);
+    if (tooCloudy) {
+        console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${maxCloudObserved}%).`);
+        return { success: false, reason: 'clouds' };
+    }
+    const tooCold = tempValues.some(temp => temp < prefs.minTemp);
+    if (tooCold) {
+        console.log(`  !! Weather fail for ${site.name}: It's too cold (${minTempObserved}°).`);
+        return { success: false, reason: 'cold' };
+    }
+    const tooHot = tempValues.some(temp => temp > prefs.maxTemp);
+    if (tooHot) {
+        console.log(`  !! Weather fail for ${site.name}: It's too hot (${maxTempObserved}°).`);
+        return { success: false, reason: 'hot' };
+    }
+
+    const avgClouds = cloudValues.reduce((a, b) => a + b, 0) / cloudValues.length;
+    const avgTemp = tempValues.reduce((a, b) => a + b, 0) / tempValues.length;
+
+    const demoMode = false;
+
+    if (demoMode) return true;
 
         
-        return { 
-            success: true, 
-            avgClouds: avgClouds, 
-            avgTemp: avgTemp 
-        };
-    } catch (error) {
-        console.error("weather API failed", error);
-        return false;
-    }
+    return { 
+        success: true, 
+        avgClouds: avgClouds, 
+        avgTemp: avgTemp 
+    };
 }
 
 export async function checkAirQuality(site) {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${site.lat}&longitude=${site.lon}&hourly=pm2_5&forecast_days=1`;
+    const aqiData = await api.getAirQuality(site.lat, site.lon);
 
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-
-        const currentPM25 = data.hourly.pm2_5[0];
-
-        if(currentPM25 > 35){
-            console.log(` !! AQI fail for ${site.name}: PM2.5 is ${currentPM25}`);
-            return { success: false, reason: 'aqi'};
-        }
-
-        return {success: true, pm25: currentPM25};
-    } catch (error) {
-        console.error("AQI API failed, skipping check", error);
-        return {success: true, pm25: 10};
+    if (aqiData.pm25 > 35) {
+        console.log(`!! AQI fail for ${site.name}: PM2.5 is ${aqiData.pm25}`);
+        return { success: false, reason: 'aqi' };
     }
+
+    return aqiData;
 }
 
 function calculateCelsius(temp) {
