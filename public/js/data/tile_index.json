@@ -1,0 +1,38 @@
+[
+    {
+        "id": "MTNWST", 
+        "fileName": "tile_40_-115.json", 
+        "bounds": {
+            "lat": [41.5, 49.0], 
+            "lon": [-117.5, -111.0]
+        }, 
+        "description": "Current Idaho/Pacific NW Data"
+    },
+    {
+        "id": "75N180W",
+        "fileName": "75N180W.json", 
+        "bounds": {
+            "lat": [41.5, 49.0], 
+            "lon": [-117.5, -111.0]
+        }, 
+        "description": "North America Region"
+    },
+    {
+        "id": "MTNSTHWST",
+        "fileName": "tile_35_-115.json", 
+        "bounds": {
+            "lat": [35.0, 40.0], 
+            "lon": [-115.0, -111.0]
+        }, 
+        "description": "Nevada/Arizona Region"
+    },
+    {
+        "id": "WYOMING",
+        "fileName": "tile_40_-110.json", 
+        "bounds": {
+            "lat": [40.0, 45.0], 
+            "lon": [-110.0, -105.0]
+        }, 
+        "description": "Nevada/Arizona Region"
+    }
+]

@@ -1,17 +1,24 @@
 const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 
-export async function getAirQuality(lat, lon) {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=1`;
+export async function getAirQuality(lat, lon, days = 7) {
+    if (lat === undefined || lon === undefined) {
+        console.error("❌ getAirQuality blocked: lat/lon is undefined");
+        return {success: false, reason: "missing_coords"};
+    }
+
+    const safeDays = Math.min(days, 7);
+    
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=${safeDays}`;
 
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error("AQI API Error");
         const data = await response.json();
 
-        return {success: true, pm25: data.hourly.pm2_5[0]};
+        return {success: true, hourly: data.hourly, timezone: data.timezone };
     } catch (error) {
-        console.error("AQI API failed:", error);
-        return {success: true, pm25: 10, fallback: true };
+        console.error("AQI API failed, using pristine air fallback.", error);
+        return {success: true, fallback: true, hourly: { pm2_5: new Array(168).fill(5) } };
     }
 }
 

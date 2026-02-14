@@ -193,7 +193,7 @@ const updateUI = async (coords, prefs) => {
         return true;
     });
 
-    const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs);
+    const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs, trainedModel);
     renderWeeklyOutlook(weeklyData, prefs);
 };
 
@@ -207,8 +207,9 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
 });
 
-window.addEventListener('load', () => {
-    initAI();
-})
+async function startApp() {
+    await initAI();
+    await runStargazingEngine();
+}
 
-runStargazingEngine();
+window.addEventListener('load', startApp);

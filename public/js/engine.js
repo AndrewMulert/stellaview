@@ -1,6 +1,7 @@
 import SunCalc from "https://esm.sh/suncalc@1.9.0";
 import { calculateDriveTime, calculateFahrenheit} from './utils.js';
 import * as api from './api.js';
+import { predictWithBrain } from "./brain.js";
 
 /**
 * @param {Object} site
@@ -11,13 +12,13 @@ import * as api from './api.js';
 * @param {Object} aqiStatus
 */
 
-function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null) {
+function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null, radiance = 0) {
     let currentTemp = weatherStatus.avgTemp;
     if (prefs.tempUnit === 'celsius') {
         currentTemp = calculateFahrenheit(currentTemp);
     }
 
-    const darknessScore = (10 - site.bortle);
+    const darknessScore = Math.max(0, 10 - (Math.log1p(radiance) * 2.5));
     const altitudeBonus = (site.elevation || 0) / 1000;
 
     const pm25 = aqiStatus ? aqiStatus.pm25 : 10;
@@ -35,7 +36,7 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     /*A running talley of why locations may fail to determine the overall reason for failure*/
-    let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0};
+    let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");
 
 
@@ -66,15 +67,24 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 
     const results = await Promise.all(allDarkSites.map(async (site) => {
         const travelTime = calculateDriveTime(userLocation, site);
-        console.log(`Site: ${site.name} | Drive: ${Math.round(travelTime)}m | Bortle: ${site.bortle}`);
+
+        const tile = await TileManager.fetchTile(site.lat, site.lon);
+        let radiance = 0;
+        if (tile) {
+            radiance = getRadianceFromTile(tile, site.lat, site.lon);
+            console.log (`Site: ${site.name} | Drive: ${Math.round(travelTime)}m | Real-time Radiance: ${radiance}`);
+        } else {
+            console.log(`Site: ${site.name} | Drive: ${Math.round(travelTime)}m`);
+        }
+
 
         if (travelTime > prefs.maxDriveTime){
             console.log(`  -> Filtered: Drive too long (${Math.round(travelTime)} > ${prefs.maxDriveTime})`);
             return null;
         };
 
-        if (site.bortle > prefs.maxBortle){
-            console.log(`  -> Filtered: Bortle too high (${site.bortle} > ${prefs.maxBortle})`);
+        if (radiance > prefs.maxBortle){
+            console.log(`  -> Filtered: Too much light pollution (${radiance} > ${prefs.maxBortle})`);
             return null;
         };
 
@@ -82,8 +92,8 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 
         if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus );
-            return { ...site, travelTime: Math.round(travelTime), score: score, bestStartTime: startOfNight.toISOString()};
+            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance);
+            return { ...site, travelTime: Math.round(travelTime), score: score, bestStartTime: startOfNight.toISOString(), radiance: radiance};
         } else {
             const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
             console.log(`  -> Filtered: ${reason} constraints failed.`);
@@ -99,7 +109,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     return {sites: finalSites, topFailure};
 }
 
-export async function findWeeklyOutlook(userLoc, allSites, prefs) {
+export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel = null) {
     const nearbySites = allSites.filter(site => {
         const travelTime = calculateDriveTime(userLoc, site);
         return travelTime <= (prefs.maxDriveTime || 120);
@@ -113,12 +123,16 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs) {
         
         try {
             const weatherData = await api.getWeatherData(site.lat, site.lon, 8);
+            const aqiData = await api.getAirQuality(site.lat, site.lon, 7);
             const travelTime = calculateDriveTime(userLoc, site);
 
             for (let i = 0; i < 7; i ++) {
                 const checkDate = new Date();
                 checkDate.setUTCDate(checkDate.getUTCDate() + i);
                 checkDate.setUTCHours(12, 0, 0, 0);
+                const hourIndex = (i * 24) + 22;
+                const currentAqiStatus = aqiData.fallback ? {success: true, pm25: 10, fallback: true } : { success: true, pm25: aqiData.hourly?.pm2_5[hourIndex] ?? 10 };
+
 
                 const times = SunCalc.getTimes(checkDate, site.lat, site.lon);
 
@@ -135,9 +149,23 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs) {
 
                 const weatherStatus = await checkWeatherWindow(site, nightStart, nightEnd, prefs, weatherData)
 
+                const prefetched = {
+                    weather: weatherStatus,
+                    aqi: currentAqiStatus,
+                    radiance: site.radiance || 0
+                };
+
                 if (weatherStatus.success) {
-                    const mockAqi = {success: true, pm25: 10};
-                    const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, mockAqi);
+                    let score;
+
+                    if (trainedModel) {
+                        const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
+                        score = brainResult.sites[0].score || 0;
+                        console.log(`AI Score for ${site.name}: ${score}%`);
+                    } else {
+                        score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, site.radiance);
+                    }
+
                     weeklyResults.push({
                         date: checkDate.toDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric' }),
                         siteName: site.name,
@@ -160,33 +188,26 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 
     if(!weeklyData || weeklyData.length === 0) {
         container.classList.add('hidden');
-        return
+        return;
     }
-
-    container.innerHTML = "";
 
     container.classList.remove('hidden');
     grid.innerHTML = '';
 
-    const counts = weeklyData.reduce((acc, curr) => {
-        acc[curr.siteName] = (acc[curr.siteName] || 0) + 1;
-        return acc;
-    }, {});
+    weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const championName = Object.keys(counts).reduce((a, b) => counts[a] >  counts[b] ? a : b);
+    const absoluteBest = [...weeklyData].sort((a, b) => b.score = a.score)[0];
 
     weeklyData.forEach(item => {
         const unit = prefs.tempUnit === 'celsius' ? 'C' : 'F';
         const card = document.createElement('div');
-        const isChamp = item.siteName === championName;
-        card.className =   `weekly-card ${item.siteName === championName ? 'champion-highlight' : ''}`;
+        const isChamp = item.siteName === absoluteBest;
+        card.className =   `weekly-card ${isChamp ? 'champion-highlight' : ''}`;
 
         card.innerHTML = `
-            <div class="date">${item.date}</div>
-            <div class="site-name">${item.siteName}</div>
-            <div class="temp">${item.avgTemp} °${unit}</div>
-            <div class="score-badge">Score: ${item.score}</div>
-            ${isChamp ? '<div class="champ-label">Weekly Best</div>' : ''}
+            <h3 class="date">${item.date} ${isChamp ? '(Weekly Best)' : ''}</h3>
+            <h2 class="site-name">${item.siteName} (${item.score}% Match)</h2>
+            <p class="temp">${item.avgTemp} °${unit}</p>
         `;
         grid.appendChild(card);
     });
@@ -254,14 +275,73 @@ export async function checkWeatherWindow(site, start, end, prefs, data = null) {
 }
 
 export async function checkAirQuality(site) {
-    const aqiData = await api.getAirQuality(site.lat, site.lon);
+    const aqiData = await api.getAirQuality(site.lat, site.lon, 1);
 
-    if (aqiData.pm25 > 35) {
+    if (!aqiData || !aqiData.success || aqiData.fallback) {
         console.log(`!! AQI fail for ${site.name}: PM2.5 is ${aqiData.pm25}`);
+        return { success: true, pm25: 10, fallback: true };
+    }
+
+    const hourlyList = aqiData.hourly?.pm_2_5;
+
+    if (!hourlyList || hourlyList.length === 0) {
+        console.warn(`⚠️ No AQI data found for ${site.name}, using fallback.`);
+        return { success: true, pm25: 10, fallback: true};
+    }
+
+    const currentPM25 = hourlyList[0];
+
+    if (currentPM25 > 35) {
+        console.log(`!! AQI fail for ${site.name}: PM2.5 is ${currentPM25}`);
         return { success: false, reason: 'aqi' };
     }
 
-    return aqiData;
+    return {success: true, pm25: currentPM25};
+}
+
+const TileManager = {
+    basePath: '/js/data/',
+    tileSize: 5,
+    cache: new Map(),
+
+    getTileName(lat, lon) {
+        const latBase = Math.floor(lat / this.tileSize) * this.tileSize;
+        const lonBase = Math.floor(lon / this.tileSize) * this.tileSize;
+        return `tile_${latBase}_${lonBase}.json`;
+    },
+
+    async fetchTile(lat, lon) {
+        const fileName = this.getTileName(lat, lon);
+        
+        if (this.cache.has(fileName)) return this.cache.get(fileName);
+
+        try {
+            const response = await fetch(this.basePath + fileName);
+            if (!response.ok) throw new Error(`Tile ${fileName} not found`);
+            
+            const data = await response.json();
+            this.cache.set(fileName, data);
+            return data;
+        } catch (err) {
+            console.error("Light Data Error:", err);
+            return null;
+        }
+    }
+};
+
+function getRadianceFromTile(tile, lat, lon) {
+    const meta = tile.metadata;
+    
+    const latPct = (meta.lat_range[1] - lat) / (meta.lat_range[1] - meta.lat_range[0]);
+    const lonPct = (lon - meta.lon_range[0]) / (meta.lon_range[1] - meta.lon_range[0]);
+
+    const row = Math.floor(latPct * (meta.rows - 1));
+    const col = Math.floor(lonPct * (meta.cols - 1));
+
+    if (tile.data[row] && tile.data[row][col] !== undefined) {
+        return tile.data[row][col];
+    }
+    return 0; 
 }
 
 function calculateCelsius(temp) {
