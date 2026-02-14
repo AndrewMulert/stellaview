@@ -40,17 +40,35 @@ let trainedModel = null;
 
 async function initAI() {
     try{
-        const savedModels = await tf.io.listModels();
+        const MODEL_VERSION = "2.1.0-8input";
+        const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
-        if (savedModels['localstorage://stella-model']) {
+        const savedModels = await tf.io.listModels();
+        const metadata = JSON.parse(localStorage.getItem('stella_metadata') || '{}');
+        const now = Date.now();
+
+        const isModelValid = savedModels['localstorage://stella-model'] && metadata.version === MODEL_VERSION && (now - (metadata.timestamp || 0)) < MAX_AGE_MS;
+
+        if (isModelValid) {
             console.log("💾 Loading saved brain from storage...");
             trainedModel = await tf.loadLayersModel('localstorage://stella-model');
             console.log("⭐ AI is online (Loaded from disk).");
         } else {
-            console.log("🎓 No saved brain found. Training a new one...");
+            if (!isModelValid && savedModels['localstorage://stella-model']) {
+                console.log("♻️ Brain is outdated or architecture changed. Wiping old model...");
+                await tf.io.removeModel('localstorage://stella-model');
+            }
+
+            console.log("🎓 Training a fresh brain...");
             trainedModel = await trainStellaBrain();
-            await trainedModel.save('localstorage://stella-model')
-            console.log("⭐ AI is online and saved for future use.");
+            await trainedModel.save('localstorage://stella-model');
+
+            localStorage.setItem('stella_metadata', JSON.stringify({
+                version: MODEL_VERSION,
+                timestamp: now
+            }));
+
+            console.log("⭐ AI is online and saved for future use.", MODEL_VERSION);
         }
     } catch (e) {
         console.error("CRITICAL AI ERROR:", e)
