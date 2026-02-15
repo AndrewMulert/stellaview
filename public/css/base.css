@@ -18,6 +18,10 @@ footer p {
   color: #ffffff;
 }
 
+.ai-status p {
+  color: white;
+}
+
 .hero {
   background-image: linear-gradient(#008571, #00464D);
   background-color: #00464D;
@@ -30,12 +34,29 @@ footer p {
   border: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .nav_clock_time {
   color: #ffffff;
   background-image: linear-gradient(#00464D, #00131A);
   background-color: #00131A;
 }
 
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
 #nav_profile {
   background-color: #59FFE5;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }/*# sourceMappingURL=base.css.map */

@@ -39,7 +39,11 @@ setInterval(timeUpdater, 1000);
 let trainedModel = null;
 
 async function initAI() {
+    const loader = document.getElementById('ai-loader');
+    const statusText = document.getElementById('ai-status-text');
+
     try{
+        loader.classList.remove('hidden');
         const MODEL_VERSION = "2.1.0-8input";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
@@ -50,15 +54,14 @@ async function initAI() {
         const isModelValid = savedModels['localstorage://stella-model'] && metadata.version === MODEL_VERSION && (now - (metadata.timestamp || 0)) < MAX_AGE_MS;
 
         if (isModelValid) {
-            console.log("💾 Loading saved brain from storage...");
+            statusText.innerText = "💾 Loading saved brain from storage...";
             trainedModel = await tf.loadLayersModel('localstorage://stella-model');
-            console.log("⭐ AI is online (Loaded from disk).");
         } else {
             if (!isModelValid && savedModels['localstorage://stella-model']) {
                 console.log("♻️ Brain is outdated or architecture changed. Wiping old model...");
                 await tf.io.removeModel('localstorage://stella-model');
             }
-
+            statusText.innerText = "🎓 Training AI for your device... (This may take 10-20 seconds)";
             console.log("🎓 Training a fresh brain...");
             trainedModel = await trainStellaBrain();
             await trainedModel.save('localstorage://stella-model');
@@ -68,16 +71,21 @@ async function initAI() {
                 timestamp: now
             }));
 
-            console.log("⭐ AI is online and saved for future use.", MODEL_VERSION);
+            statusText.innerText ="⭐ AI is online (Loaded from disk).";
         }
     } catch (e) {
         console.error("CRITICAL AI ERROR:", e)
+        statusText.innerText = "⚠️ AI failed. Using manual mode.";
+        setTimeout(() => loader.classList.add('hidden'), 3000);
         console.warn("AI failed to load. Falling back to Manual Engine")
         trainedModel = null;
     }
 }
 
 async function runStargazingEngine() {
+    const loader = document.getElementById('ai-loader');
+    const statusText = document.getElementById('ai-status-text');
+
     console.log("Step 1: Engine function called");
 
     const user = null;
@@ -86,6 +94,7 @@ async function runStargazingEngine() {
     const date = new Date();
 
     console.log("Step 3: Requesting location...");
+    statusText.innerText = "🌎 Grabbing Location...";
     
     if (!navigator.geolocation) {
         console.error("Geolocation is not supported by this browser.");
@@ -94,6 +103,7 @@ async function runStargazingEngine() {
     }
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
+        statusText.innerText = "📌 Location Received...";
         console.log("Step 4: Location received!", pos.coords.latitude, pos.coords.longitude);
         const userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         await updateUI(userLoc, prefs);
@@ -171,17 +181,26 @@ async function handleSearch() {
 }
 
 const updateUI = async (coords, prefs) => {
+    const loader = document.getElementById('ai-loader');
+    const statusText = document.getElementById('ai-status-text');
+    const weeklyContainer = document.querySelector("#weekly-outlook");
+
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
     const date = new Date();
+    statusText.innerText = "🔦 Looking for Stargazing Sites...";
     const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, prefs.maxDriveTime);
     console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);
 
     let results;
 
     if (trainedModel) {
+        statusText.innerText = "🧠 Making Decision...";
         results = await predictWithBrain(trainedModel, allSites, coords, prefs);
+        statusText.innerText = "🥳 Conclusion Formed!";
     } else {
+        statusText.innerText = "✏️ Writing Notes...";
         results = await findBestSites(date, coords, allSites, prefs);
+        statusText.innerText = "📃 Publishing Results!";
     }
 
     const { sites, topFailure} = results;
@@ -192,6 +211,19 @@ const updateUI = async (coords, prefs) => {
     if (sites.length > 0) {
         decisionSpan.textContent = "Tonight is a good night for stargazing.";
         displayResults(sites, prefs);
+
+        if (weeklyContainer) weeklyContainer.classList.add('hidden');
+
+        statusText.innerText = "✨ Clear skies found!";
+
+        const spinner = loader.querySelector(".spinner");
+        if (spinner) spinner.classList.add('hidden');
+
+        setTimeout(() => {
+            loader.classList.add('hidden')
+
+            if (spinner) spinner.classList.remove('hidden');
+        }, 3000);
     } else {
         const reason = topFailure || "clouds";
         const messages = {
@@ -205,14 +237,29 @@ const updateUI = async (coords, prefs) => {
         decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
 
         console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
+
+        if (weeklyContainer) weeklyContainer.classList.remove('hidden');
+
+        statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week...";
+
+        const shortlisted = sites.length > 0 ? sites : allSites.filter(s => {
+            return true;
+        });
+
+        const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs, trainedModel);
+        renderWeeklyOutlook(weeklyData, prefs);
+
+        statusText.innerText = "✅ Weekly Outlook Updated";
+
+        const spinner = loader.querySelector(".spinner");
+        if (spinner) spinner.classList.add('hidden');
+
+        setTimeout(() => {
+            loader.classList.add('hidden')
+
+            if (spinner) spinner.classList.remove('hidden');
+        }, 3000);
     }
-
-    const shortlisted = sites.length > 0 ? sites : allSites.filter(s => {
-        return true;
-    });
-
-    const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs, trainedModel);
-    renderWeeklyOutlook(weeklyData, prefs);
 };
 
 document.addEventListener('click', (e) => {

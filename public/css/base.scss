@@ -28,6 +28,12 @@ footer{
     }
 }
 
+.ai-status{
+    p{
+        color: white;
+    }
+}
+
 .hero{
     background-image: linear-gradient($medium-secondary, $dark-secondary);
     background-color: $dark-secondary;
@@ -42,14 +48,32 @@ footer{
     }
 }
 
+.hidden {
+    display: none !important;
+}
+
 .nav_clock_time{
     color: $white;
     background-image: linear-gradient($dark-secondary, $darker-secondary);
     background-color: $darker-secondary;
 }
 
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
 #nav{
     &_profile{
         background-color: $base-secondary;
+    }
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
     }
 }
