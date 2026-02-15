@@ -157,6 +157,9 @@ async function handleSearch() {
     const query = document.querySelector("#location_input").value;
     if (!query) return;
 
+    const statusText = document.getElementById('ai-status-text');
+    statusText.innerText ="🔍 Starting new search...";
+
     console.log(`Searching for: ${query}...`);
 
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
@@ -168,6 +171,7 @@ async function handleSearch() {
         if (data.length > 0) {
             const newCoords = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon)};
             console.log("Found location:", data[0].display_name);
+            statusText.innerText = "📌 Location found...";
 
             const prefs = await getActivePrefs();
             await updateUI(newCoords, prefs);
