@@ -44,9 +44,15 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     if (decisionSpan) decisionSpan.textContent = "Beginning our search, unfolding the map...";
 
     const times = SunCalc.getTimes(date, userLocation.lat, userLocation.lon);
-    const startOfNight = times.night;
+    let startOfNight = times.night;
+    const now = new Date();
 
     let windowEndTime = times.nightEnd;
+
+    if (now > startOfNight && now < windowEndTime){
+        startOfNight = now;
+    }
+
     if (prefs.latestStayOut) {
         const [hours, minutes] = prefs.latestStayOut.split(':');
         windowEndTime = new Date(date);
@@ -93,7 +99,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
             const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance);
-            return { ...site, travelTime: Math.round(travelTime), score: score, bestStartTime: startOfNight.toISOString(), radiance: radiance};
+            return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance};
         } else {
             const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
             console.log(`  -> Filtered: ${reason} constraints failed.`);
@@ -126,7 +132,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
             const aqiData = await api.getAirQuality(site.lat, site.lon, 7);
             const travelTime = calculateDriveTime(userLoc, site);
 
-            for (let i = 0; i < 7; i ++) {
+            for (let i = 1; i < 7; i ++) {
                 const checkDate = new Date();
                 checkDate.setUTCDate(checkDate.getUTCDate() + i);
                 checkDate.setUTCHours(12, 0, 0, 0);
@@ -214,63 +220,60 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 }
 
 export async function checkWeatherWindow(site, start, end, prefs, data = null) {
-    let weatherData = data;
+    let weatherData = data || await api.getWeatherData(site.lat, site.lon, 2);
 
-    if (!weatherData) {
-        weatherData = await api.getWeatherData(site.lat, site.lon, 2);
-    }
-
-    if (!weatherData || !weatherData.hourly) return { success: false, reason: 'nodata'};
+    if (!weatherData?.hourly) return { success: false, reason: 'nodata'};
 
     const startTime = new Date(start).getTime();
     const endTime = new Date(end).getTime();
 
     console.log(`Checking ${site.name}: Window [${new Date(startTime).toISOString()}] to [${new Date(endTime).toISOString()}]`);
 
-    const windowIndices = weatherData.hourly.time
-        .map((t, index) => { const timeStr = t.endsWith('Z') ? t : t + ':00.000Z'; return {time: new Date(timeStr).getTime(), index}})
-        .filter(item => { return item.time >= startTime && item.time <= endTime});
-        console.log(`Weather Window for ${site.name}: Found ${windowIndices.length} hourly data points.`);
+    const hours = weatherData.hourly.time.map((t, i) => ({
+        time: new Date (t.endsWith('Z') ? t : t + ':00.000Z').getTime(),
+        clouds: weatherData.hourly.cloud_cover[i],
+        temp: weatherData.hourly.temperature_2m[i],
+        index: i
+    }))
+    .filter(h => h.time >= startTime && h.time <= endTime);
 
-    if (windowIndices.length === 0) {
+
+    if (hours.length === 0) {
         console.error(`    !! No weather data found for ${site.name} in the night window.`);
         return {success: false, reason: 'out_of_range'}; 
     }
 
-    const cloudValues = windowIndices.map(item => weatherData.hourly.cloud_cover[item.index]);
-    const tempValues = windowIndices.map(item => weatherData.hourly.temperature_2m[item.index]);
-    const maxCloudObserved = Math.max(...cloudValues);
-    const minTempObserved = Math.min(...tempValues);
-    const maxTempObserved = Math.max(...tempValues);
+    let bestHour = hours.reduce((prev, curr) => (curr.clouds < prev.clouds ? curr : prev));
 
-    const tooCloudy = cloudValues.some(clouds => clouds > 20);
-    if (tooCloudy) {
+    if (bestHour.clouds > 20) {
         console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${maxCloudObserved}%).`);
         return { success: false, reason: 'clouds' };
     }
-    const tooCold = tempValues.some(temp => temp < prefs.minTemp);
-    if (tooCold) {
+
+    if (bestHour.temp < prefs.minTemp) {
         console.log(`  !! Weather fail for ${site.name}: It's too cold (${minTempObserved}°).`);
         return { success: false, reason: 'cold' };
     }
-    const tooHot = tempValues.some(temp => temp > prefs.maxTemp);
-    if (tooHot) {
+
+    if (bestHour.temp > prefs.maxTemp) {
         console.log(`  !! Weather fail for ${site.name}: It's too hot (${maxTempObserved}°).`);
         return { success: false, reason: 'hot' };
     }
 
-    const avgClouds = cloudValues.reduce((a, b) => a + b, 0) / cloudValues.length;
-    const avgTemp = tempValues.reduce((a, b) => a + b, 0) / tempValues.length;
-
-    const demoMode = false;
-
-    if (demoMode) return true;
+    let durationHours = 0;
+    const startIndex = hours.findIndex(h => h.time === bestHour.time);
+    for (let i = startIndex; i < hours.length; i++) {
+        if (hours[i].clouds <=25) durationHours++;
+        else break;
+    }
 
         
     return { 
         success: true, 
-        avgClouds: avgClouds, 
-        avgTemp: avgTemp 
+        bestTime: new Date(bestHour.time),
+        duration: durationHours,
+        avgClouds: bestHour.clouds, 
+        avgTemp: bestHour.temp 
     };
 }
 

@@ -17,15 +17,17 @@ export async function trainStellaBrain() {
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
     model.compile({
-        optimizer: tf.train.adam(0.01),
+        optimizer: tf.train.adam(0.001),
         loss: 'meanSquaredError'
     });
 
     console.log("Brain training started...");
     await model.fit(inputs, outputs, {
-        epochs: 30,
+        epochs: 20,
+        shuffle: true,
+        validationSplit: 0.1,
         callbacks: {
-            onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}`)
+            onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)
         }
     });
 
@@ -40,8 +42,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     let failureCounts = {clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     const date = new Date();
 
-    const startOfNight = new Date(date);
-    const windowEndTime = new Date(date.getTime() + 6 * 60 * 60 * 1000);
+    const startOfNight = new Date();
+    startOfNight.setHours(20, 30, 0, 0);
+    const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
 
     const indexResponse = await fetch('https://andrewmulert.github.io/light_tiles/manifest.json');
     const manifest = await indexResponse.json();
@@ -95,9 +98,11 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const score = scoreData[0];
 
             const finalScore = isNaN(score) ? 0 : score;
+
+
             console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${finalScore}`);
 
-            const boostedScore = (Math.sqrt(finalScore) * 100).toFixed(1);
+            const boostedScore = (Math.sqrt(finalScore) * 600000).toFixed(1);
 
             console.group(`📊 Data Audit: ${site.name}`);
             console.log("1. Sensor Raw:", {
@@ -116,9 +121,13 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
             validSites.push({
                 ...site,
-                score: boostedScore,
+                rawScore: finalScore,
                 travelTime: travelTime,
-                bestStartTime: startOfNight.toISOString()
+                bestTime: weather.bestTime,
+                duration: weather.duration,
+                avgTemp: weather.avgTemp,
+                avgClouds: weather.avgClouds,
+                clouds: weather.avgClouds
             });
 
             inputTensor.dispose();
@@ -127,6 +136,17 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const reason = !weather.success ? weather.reason : 'aqi';
             failureCounts[reason]++;
         }
+    }
+
+    if (validSites.length > 0) {
+        const results = validSites.map(s => s.rawScore);
+        const max = Math.max(...results);
+        const min = Math.min(...results);
+
+        validSites.forEach(site => {
+            const normalized = (site.rawScore - min) / (max-min);
+            site.score = (60 + (normalized * 39)).toFixed(1);
+        });
     }
 
     validSites.sort((a, b) => b.score - a.score);

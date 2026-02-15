@@ -44,7 +44,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.0-8input";
+        const MODEL_VERSION = "2.1.2-improved_time";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
@@ -128,28 +128,52 @@ function displayResults(sites, prefs) {
     container.innerHTML = "";
 
     sites.forEach(site => {
-        const startTime = site.bestStartTime ? new Date(site.bestStartTime) : new Date();
-        const buffer = (site.travelTime || 0) + (prefs.departureLeadTime || 30);
+        let rawDate = site.bestTime;
+        let targetArrival;
 
-        const leaveDate = new Date(startTime.getTime());
-        leaveDate.setMinutes(leaveDate.getMinutes() - buffer);
+        if (rawDate instanceof Date) {
+            targetArrival = rawDate;
+        } else if (typeof rawDate === "string") {
+            const formatted = rawDate.includes('T') ? rawDate : rawDate.replace(' ', 'T') + 'Z';
+            targetArrival = new Date(formatted);
+        } else {
+            targetArrival = new Date();
+        }
+
+        const driveTime = site.travelTime || 0;
+        const leadTime = prefs.departureLeadTime || 30;
+
+        const leaveDate = new Date(targetArrival.getTime() - (driveTime + leadTime) * 60000);
+
+        const cloudVal = (site.avgClouds !== undefined && site.avgClouds !== null) ? Math.round(site.avgClouds) : '--';
+        const tempDisplay = Math.round(site.avgTemp) || '--';
+
+        const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
+        const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
+        const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
 
         const card = document.createElement("div");
         card.className = "site-card";
         card.innerHTML = `
-            <h3>${site.name}</h3>
-            <p><strong>Bortle:</strong> ${site.bortle}</p>
+            <h3>${site.name} (Score: ${site.score})</h3>
+            <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p>
+            <p><strong>Viewing Starts:</strong> ${viewingStr}</p>
+            <p><strong>Window:</strong> ${site.duration || '0'} hours of clear sky</p>
+            <p><strong>Conditions: </strong> ${tempDisplay} °F / ${cloudVal}% clouds</p>
             <p><strong>Drive Time:</strong> ~${site.travelTime} mins</p>
-            <p class="leave-time">Leave by: ${leaveDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>
+            <p class="leave-time">Leave by: ${leaveStr}</p>
         `;
         container.appendChild(card);
     });
     
     sites.forEach(site => {
-        const leaveDate = new Date(site.bestStartTime);
-        leaveDate.setMinutes(leaveDate.getMinutes() - site.travelTime - prefs.departureLeadTime);
-
-        console.log(`To reach ${site.name}, leave at: ${leaveDate.toLocaleTimeString()}`);
+        if (site.bestTime && !isNaN(new Date(site.bestTime))) {
+            const leaveTime = new Date(new Date(site.bestTime).getTime() - (site.travelTime * 60000));
+            const formattedLeave = leaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            console.log(`✅ Suggestion: Leave for ${site.name} at ${formattedLeave}`);
+        } else {
+            console.warn(`skipping time log for ${site.name}: bestTime missing or invalid.`);
+        }
     });
 };
 

@@ -31,7 +31,7 @@ export function generateMockHistory(numSamples = 500) {
             - (scenario.clouds / 20) 
             - (scenario.pm25 /10) 
             - (Math.abs(scenario.temp - 68) * 0.1)
-            - (scenario.travelTime / 100);
+            - (scenario.travelTime / 10);
         
         score += (scenario.publicRating * 0.5) + (scenario.userRating * 1.0);
 
