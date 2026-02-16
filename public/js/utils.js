@@ -33,9 +33,16 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
     return score;
 }
 
-export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset) {
+export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI) {
+    if (travelTime > prefs.maxDriveTime) return null;
+    
     const logRad = Math.log10(radiance + 1);
     const normRadiance = Math.max(0, 1 - (logRad / 2.5));
+
+    let normNDVI = 0.8;
+    if (siteNDVI > 0.85) normNDVI = 0.1;
+    else if (siteNDVI < 0.1) normNDVI = 0.4;
+    else normNDVI = 1.0;
 
     const cloudVal = weather.avgClouds ?? weather.clouds ?? 100; 
     const normClouds = Math.max(0, (100 - cloudVal) / 100);
@@ -60,9 +67,9 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normPublic =  (site.rating !== undefined) ? site.rating / 5 : 0.5;
     const normUser = (site.userRating !== undefined) ? site.userRating / 5 : 0.5;
 
-    const normTravel = Math.max(0, 1 - (travelTime / prefs.maxDriveTime));
+    const normTravel = Math.max(0, 1 - (travelTime / 120));
 
-    return [normRadiance, normClouds, normAQI, normMoon, normTemp, normPublic, normUser, normTravel, normDuration, normStart];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normPublic, normUser, normTravel, normDuration, normStart];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
@@ -122,4 +129,82 @@ export function getMoonIllumination(date) {
     const cyclePos = (daysSince % 29.53059) / 29.53059;
 
     return Math.abs(Math.sin(cyclePos * Math.PI));
+}
+
+export async function getVegManifest() {
+    const response = await fetch('https://andrewmulert.github.io/vegetation_tiles/manifest.json');
+    const data = await response.json();
+    return data.available_tiles;
+}
+
+export async function getNDVIValue(lat, lon, manifestTiles) {
+    const h = Math.floor((lon + 180) / 10); 
+    const v = Math.floor((90 - lat) / 10);
+    
+    const tileId = `h${h.toString().padStart(2, '0')}v${v.toString().padStart(2, '0')}`;
+
+    if (!manifestTiles.includes(tileId)) {
+        return 0;
+    }
+
+    try {
+        const url = `https://andrewmulert.github.io/vegetation_tiles/tiles/${tileId}.json`;
+        const response = await fetch(url);
+        if (!response.ok) return 0;
+
+        const tileData = await response.json();
+        const grid = tileData.data;
+
+        const rows = grid.length;
+        const cols = grid[0].length;
+
+        const latInTile = (90 - lat) % 10;
+        const lonInTile = (lon + 180) % 10;
+
+        const row = Math.floor((latInTile / 10) * (rows - 1));
+        const col = Math.floor((lonInTile / 10) * (cols - 1));
+
+        const safeRow = Math.max(0, Math.min(rows - 1, row));
+        const safeCol = Math.max(0, Math.min(cols - 1, col));
+
+        const rawValue = grid[safeRow][safeCol];
+
+        return rawValue * 0.0001; 
+
+    } catch (error) {
+        console.error("NDVI fetch error:", error);
+        return 0;
+    }
+}
+
+export async function getNDVI(lat, lon) {
+    try {
+        const response = await fetch('/js/data/veg_data_idaho.json');
+        if (!response.ok) throw new Error("Local data unavailable");
+        
+        const vegData = await response.json();
+        const { metadata, data } = vegData;
+
+        const inBounds = lat >= metadata.lat_min && lat <= metadata.lat_max && 
+                         lon >= metadata.lon_min && lon <= metadata.lon_max;
+
+        if (inBounds) {
+            const row = Math.floor(((metadata.lat_max - lat) / (metadata.lat_max - metadata.lat_min)) * (metadata.rows - 1));
+            const col = Math.floor(((lon - metadata.lon_min) / (metadata.lon_max - metadata.lon_min)) * (metadata.cols - 1));
+            
+            let val = data[row]?.[col];
+            
+            if (val !== undefined && val !== 0) {
+                let normalizedVal = val > 10000 ? val / 1000000000000 : (val > 1 ? val / 10000 : val);
+                
+                return Math.max(0, Math.min(1, normalizedVal));
+            }
+        }
+
+        return 0.22;
+
+    } catch (err) {
+        console.warn("NDVI Lookup failed, using safety fallback.");
+        return 0.22; 
+    }
 }

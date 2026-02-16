@@ -1,33 +1,37 @@
 import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js';
 import { checkWeatherWindow, checkAirQuality } from './engine.js';
-import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes} from './utils.js';
+import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes, getNDVI} from './utils.js';
 import { generateMockHistory } from './trainer.js';
 
 const tf = window.tf;
 
 export async function trainStellaBrain() {
-    const data = generateMockHistory(1000);
+    const data = generateMockHistory(2000);
 
     const inputs = tf.tensor2d(data.map(d => d.input));
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 12, inputShape: [10], activation: 'relu'}));
-    model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 12, inputShape: [11], activation: 'relu'}));
+    /*model.add(tf.layers.dense({ units: 8, activation: 'relu' }));*/
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
     model.compile({
-        optimizer: tf.train.adam(0.001),
+        optimizer: tf.train.adam(0.01),
         loss: 'meanSquaredError'
     });
 
     console.log("Brain training started...");
     await model.fit(inputs, outputs, {
-        epochs: 20,
+        epochs: 50,
+        batchSize: 32,
         shuffle: true,
         validationSplit: 0.1,
         callbacks: {
-            onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)
+            onEpochEnd: (epoch, logs) => {
+                if (epoch % 10 === 0) {
+                    console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)};
+                }
         }
     });
 
@@ -57,6 +61,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     for (let i = 0; i < allSites.length; i++) {
         const site = allSites[i];
 
+        const siteNDVI = await getNDVI(site.lat, site.lon);
+        console.log(`🌿 NDVI lookup for ${site.name}: ${siteNDVI}`);
+
 
         let travelTime = (roadTimes && roadTimes[i] !== undefined) ? Math.round(roadTimes[i]) : Math.round(calculateDriveTime(userLoc, site));
 
@@ -85,7 +92,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
         if (weather.success && aqi.success) {
 
-            const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[hourIndex] || 5 : 5;
+            const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
 
             const brainStats = {
                 clouds: weather.avgClouds,
@@ -100,7 +107,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const now = new Date();
             const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
 
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset);
+            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI);
 
             if (inputData.some(val => isNaN(val))) {
                 console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);
@@ -117,7 +124,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
             console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${finalScore}`);
 
-            const boostedScore = (Math.sqrt(finalScore) * 600000).toFixed(1);
+            const boostedScore = (finalScore * 100).toFixed(1);
 
             console.group(`📊 Data Audit: ${site.name}`);
             console.log("1. Sensor Raw:", {
@@ -137,6 +144,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             validSites.push({
                 ...site,
                 radiance: radiance,
+                ndvi: siteNDVI,
                 bortle: radianceToBortle(radiance),
                 rawScore: finalScore,
                 travelTime: travelTime,
@@ -163,7 +171,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
         validSites.forEach(site => {
             const normalized = (site.rawScore - min) / (max-min);
-            site.score = (60 + (normalized * 39)).toFixed(1);
+            let humanScore = Math.pow(site.rawScore, 0.4) * 100;
+
+            site.score = Math.min(99.9, humanScore).toFixed(1);
         });
     }
 

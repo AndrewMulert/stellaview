@@ -12,7 +12,7 @@ import { predictWithBrain } from "./brain.js";
 * @param {Object} aqiStatus
 */
 
-function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null, radiance = 0) {
+function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null, radiance = 0, ndvi = 0) {
     let currentTemp = weatherStatus.avgTemp;
     if (prefs.tempUnit === 'celsius') {
         currentTemp = calculateFahrenheit(currentTemp);
@@ -22,16 +22,22 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
     const altitudeBonus = (site.elevation || 0) / 1000;
 
     const pm25 = aqiStatus ? aqiStatus.pm25 : 10;
-    const hazePenalty = pm25 / 10;
+    const hazePenalty = Math.max(0, (pm25 - 10) / 5);
 
-    const tempDiff = Math.abs(currentTemp - 68);
-    const comfortPenalty = tempDiff * 0.1;
-    const distancePenalty = travelTime / 60;
+    const idealTemp = (prefs.minTemp + prefs.maxTemp) / 2;
+    const tempDiff = Math.abs(currentTemp - idealTemp);
+    const comfortPenalty = tempDiff * 0.15;
 
-    const moonPenalty = moonIllum * 2;
+    const distancePenalty = (travelTime / prefs.maxDriveTime) * 5;
 
-    const finalScore = darknessScore + altitudeBonus - hazePenalty - comfortPenalty - distancePenalty - moonPenalty;
-    return finalScore.toFixed(2);
+    const moonPenalty = moonIllum * 3;
+
+    const natureBonus = ndvi * 2;
+
+    const finalScore = (darknessScore - hazePenalty - comfortPenalty - distancePenalty - moonPenalty + natureBonus);
+    
+    const percentage = Math.max(0, Math.min(100, (finalScore / 10) * 100));
+    return percentage.toFixed(1);
 }
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
@@ -94,12 +100,12 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             return null;
         };
 
-        const [weatherStatus, aqiStatus] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site)]);
+        const [weatherStatus, aqiStatus, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), api.getNDVI(site.lat, site.lon)]);
 
         if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance);
-            return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance};
+            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi);
+            return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance, ndvi: ndvi};
         } else {
             const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
             console.log(`  -> Filtered: ${reason} constraints failed.`);
@@ -153,12 +159,15 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
                 const moonIllum = SunCalc.getMoonIllumination(checkDate).fraction;
 
-                const weatherStatus = await checkWeatherWindow(site, nightStart, nightEnd, prefs, weatherData)
+                const weatherStatus = await checkWeatherWindow(site, nightStart, nightEnd, prefs, weatherData);
+
+                const ndviValue = await api.getNDVI(site.lat, site.lon);
 
                 const prefetched = {
                     weather: weatherStatus,
                     aqi: currentAqiStatus,
-                    radiance: site.radiance || 0
+                    radiance: site.radiance || 0,
+                    ndvi: ndviValue
                 };
 
                 if (weatherStatus.success) {
@@ -202,12 +211,14 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 
     weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const absoluteBest = [...weeklyData].sort((a, b) => b.score = a.score)[0];
+    const sortedData = [...weeklyData].sort((a, b) => b.score - a.score);
+    const absoluteBestName = sortedData.length > 0 ? sortedData[0].siteName : null;
 
     weeklyData.forEach(item => {
         const unit = prefs.tempUnit === 'celsius' ? 'C' : 'F';
         const card = document.createElement('div');
-        const isChamp = item.siteName === absoluteBest;
+
+        const isChamp = item.siteName === absoluteBestName;
         card.className =   `weekly-card ${isChamp ? 'champion-highlight' : ''}`;
 
         card.innerHTML = `
@@ -246,17 +257,17 @@ export async function checkWeatherWindow(site, start, end, prefs, data = null) {
     let bestHour = hours.reduce((prev, curr) => (curr.clouds < prev.clouds ? curr : prev));
 
     if (bestHour.clouds > 20) {
-        console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${maxCloudObserved}%).`);
+        console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${bestHour.clouds}%).`);
         return { success: false, reason: 'clouds' };
     }
 
     if (bestHour.temp < prefs.minTemp) {
-        console.log(`  !! Weather fail for ${site.name}: It's too cold (${minTempObserved}°).`);
+        console.log(`!! Cold fail: ${bestHour.temp}° < ${prefs.minTemp}°`);
         return { success: false, reason: 'cold' };
     }
 
     if (bestHour.temp > prefs.maxTemp) {
-        console.log(`  !! Weather fail for ${site.name}: It's too hot (${maxTempObserved}°).`);
+        console.log(`!! Heat fail: ${bestHour.temp}° > ${prefs.maxTemp}°`);
         return { success: false, reason: 'hot' };
     }
 
@@ -279,27 +290,19 @@ export async function checkWeatherWindow(site, start, end, prefs, data = null) {
 
 export async function checkAirQuality(site) {
     const aqiData = await api.getAirQuality(site.lat, site.lon, 1);
+    const threshold = 35; // Standard "Unhealthy for Sensitive Groups" cutoff
 
     if (!aqiData || !aqiData.success || aqiData.fallback) {
-        console.log(`!! AQI fail for ${site.name}: PM2.5 is ${aqiData.pm25}`);
-        return { success: true, pm25: 10, fallback: true };
+        return { success: true, pm25: 12, fallback: true };
     }
 
-    const hourlyList = aqiData.hourly?.pm2_5;
+    const currentPM25 = aqiData.hourly?.pm2_5[0] || 12;
 
-    if (!hourlyList || hourlyList.length === 0) {
-        console.warn(`⚠️ No AQI data found for ${site.name}, using fallback.`);
-        return { success: true, pm25: 10, fallback: true};
-    }
-
-    const currentPM25 = hourlyList[0];
-
-    if (currentPM25 > 35) {
-        console.log(`!! AQI fail for ${site.name}: PM2.5 is ${currentPM25}`);
+    if (currentPM25 > threshold) {
+        console.log(`!! AQI fail: ${site.name} is too hazy (${currentPM25} PM2.5)`);
         return { success: false, reason: 'aqi' };
     }
-
-    return {success: true, pm25: currentPM25};
+    return { success: true, pm25: currentPM25 };
 }
 
 const TileManager = {
