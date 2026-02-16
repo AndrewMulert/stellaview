@@ -6,7 +6,7 @@ import { generateMockHistory } from './trainer.js';
 const tf = window.tf;
 
 export async function trainStellaBrain() {
-    const data = generateMockHistory(2000);
+    const data = generateMockHistory(1000);
 
     const inputs = tf.tensor2d(data.map(d => d.input));
     const outputs = tf.tensor2d(data.map(d => d.output));
@@ -23,12 +23,14 @@ export async function trainStellaBrain() {
 
     console.log("Brain training started...");
     await model.fit(inputs, outputs, {
-        epochs: 50,
-        batchSize: 32,
+        epochs: 30,
+        batchSize: 64,
+        yieldEveryIteration: true,
         shuffle: true,
         validationSplit: 0.1,
         callbacks: {
             onEpochEnd: (epoch, logs) => {
+                if (logs.loss < 0.001) model.stopTraining = true;
                 if (epoch % 10 === 0) {
                     console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)};
                 }
@@ -44,43 +46,50 @@ export async function trainStellaBrain() {
 
 export async function predictWithBrain(model, allSites, userLoc, prefs, preFetchedData = null) {
     let failureCounts = {clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
+    const validSites = [];
+
     const date = new Date();
 
     const startOfNight = new Date();
     startOfNight.setHours(20, 30, 0, 0);
     const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
 
-    const indexResponse = await fetch('https://andrewmulert.github.io/light_tiles/manifest.json');
-    const manifest = await indexResponse.json();
-    const tiles = manifest.tiles;
 
-    const roadTimes = await getActualDriveTimes(userLoc, allSites);
+    let lightTiles = null, vegTiles = null, roadTimes = null;
 
-    const validSites = [];
+    if (!preFetchedData) {
+        const [lightRes, vegRes] = await Promise.all([
+            fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
+            fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
+        ]);
+        lightTiles = (await lightRes.json()).tiles;
+        const vegManifest = await vegRes.json();
+        vegTiles = vegManifest.available_tiles || vegManifest.tiles;
+        roadTimes = await getActualDriveTimes(userLoc, allSites)
+    }
 
     for (let i = 0; i < allSites.length; i++) {
         const site = allSites[i];
-
-        const siteNDVI = await getNDVI(site.lat, site.lon);
-        console.log(`🌿 NDVI lookup for ${site.name}: ${siteNDVI}`);
-
-
-        let travelTime = (roadTimes && roadTimes[i] !== undefined) ? Math.round(roadTimes[i]) : Math.round(calculateDriveTime(userLoc, site));
-
-        const origin = `${userLoc.lat},${userLoc.lon}`;
-        const destination = `${site.lat},${site.lon}`;
-
-        let weather, aqi, radiance;
+        let weather, aqi, radiance, siteNDVI, travelTime;
 
         if(preFetchedData) {
             weather = preFetchedData.weather;
             aqi = preFetchedData.aqi;
             radiance = preFetchedData.radiance || 0;
+            siteNDVI = preFetchedData.ndvi || 0.1;
+            travelTime = preFetchedData.travelTime;
         } else {
+            const startOfNight = new Date();
+            startOfNight.setHours(20, 30, 0, 0);
+            const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
+
             weather = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
             aqi = await checkAirQuality(site);
-            radiance = await getRadianceValue(site.lat, site.lon, tiles);
+            radiance = await getRadianceValue(site.lat, site.lon, lightTiles);
             console.log(`📡 NASA Radiance for ${site.name}: ${radiance}`);
+            siteNDVI = await getNDVI(site.lat, site.lon, vegTiles);
+            console.log(`🌿 NDVI lookup for ${site.name}: ${siteNDVI}`);
+            travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes [i] : calculateDriveTime(userLoc, site);
         }
 
         if (travelTime > prefs.maxDriveTime){
@@ -117,18 +126,20 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const inputTensor = tf.tensor2d([inputData]);
             const prediction = model.predict(inputTensor);
             const scoreData = await prediction.data();
-            const score = scoreData[0];
+            const score = isNaN(scoreData[0]) ? 0 : scoreData[0];
 
-            const finalScore = isNaN(score) ? 0 : score;
+            const origin = `${userLoc.lat},${userLoc.lon}`;
+            const destination = `${site.lat},${site.lon}`;
 
 
-            console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${finalScore}`);
+            console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${score}`);
 
-            const boostedScore = (finalScore * 100).toFixed(1);
+            const boostedScore = (score * 100).toFixed(1);
 
             console.group(`📊 Data Audit: ${site.name}`);
             console.log("1. Sensor Raw:", {
                 radiance: radiance,
+                siteNDVI: siteNDVI,
                 clouds: brainStats.clouds,
                 temp: brainStats.temp,
                 moon: moonIllum,
@@ -136,7 +147,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             });
             console.log("2. AI Normalized (The 0-1 values):", inputData);
             console.log("3. Final Result:", {
-                rawScore: finalScore,
+                rawScore: score,
                 boosted: boostedScore
             });
             console.groupEnd();
@@ -146,13 +157,13 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
                 radiance: radiance,
                 ndvi: siteNDVI,
                 bortle: radianceToBortle(radiance),
-                rawScore: finalScore,
+                rawScore: score,
                 travelTime: travelTime,
                 bestTime: weather.bestTime,
                 duration: weather.duration,
                 avgTemp: weather.avgTemp,
                 avgClouds: weather.avgClouds,
-                clouds: weather.avgClouds,
+                score: 0,
                 mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
             });
 
@@ -170,7 +181,6 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         const min = Math.min(...results);
 
         validSites.forEach(site => {
-            const normalized = (site.rawScore - min) / (max-min);
             let humanScore = Math.pow(site.rawScore, 0.4) * 100;
 
             site.score = Math.min(99.9, humanScore).toFixed(1);

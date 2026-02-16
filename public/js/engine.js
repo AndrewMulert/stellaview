@@ -1,5 +1,5 @@
 import SunCalc from "https://esm.sh/suncalc@1.9.0";
-import { calculateDriveTime, calculateFahrenheit} from './utils.js';
+import { calculateDriveTime, calculateFahrenheit, getNDVI, getRadianceValue} from './utils.js';
 import * as api from './api.js';
 import { predictWithBrain } from "./brain.js";
 
@@ -77,17 +77,15 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         return { sites: [], topFailure: 'moon' };
     }
 
+    const [lightRes, vegRes] = await Promise.all([
+        fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
+        fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
+    ]);
+    const lightTiles = (await lightRes.json()).tiles;
+    const vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
+
     const results = await Promise.all(allDarkSites.map(async (site) => {
         const travelTime = calculateDriveTime(userLocation, site);
-
-        const tile = await TileManager.fetchTile(site.lat, site.lon);
-        let radiance = 0;
-        if (tile) {
-            radiance = getRadianceFromTile(tile, site.lat, site.lon);
-            console.log (`Site: ${site.name} | Drive: ${Math.round(travelTime)}m | Real-time Radiance: ${radiance}`);
-        } else {
-            console.log(`Site: ${site.name} | Drive: ${Math.round(travelTime)}m`);
-        }
 
 
         if (travelTime > prefs.maxDriveTime){
@@ -100,7 +98,8 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             return null;
         };
 
-        const [weatherStatus, aqiStatus, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), api.getNDVI(site.lat, site.lon)]);
+        const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), getRadianceFromTile(site.lat, site.lon, lightTiles), getNDVI(site.lat, site.lon, vegTiles)]);
+        console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
 
         if (weatherStatus.success && aqiStatus.success) {
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
@@ -127,74 +126,97 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
         return travelTime <= (prefs.maxDriveTime || 120);
     });
 
-    console.log(`Weekly Outlook: Only checking ${nearbySites.length} nearby sites.`);
+    console.log(`Weekly Outlook: Parallel checking ${nearbySites.length} nearby sites.`);
 
-    const weeklyResults = [];
+    const [vegRes, lightRes] = await Promise.all([
+        fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json'),
+        fetch('https://andrewmulert.github.io/light_tiles/manifest.json')
+    ]);
+    const vegTiles = (await vegRes.json()).tiles;
+    const lightTiles = (await lightRes.json()).tiles;
 
-    for (const site of nearbySites) {
-        
+    const processSite = async (site) => {
         try {
-            const weatherData = await api.getWeatherData(site.lat, site.lon, 8);
-            const aqiData = await api.getAirQuality(site.lat, site.lon, 7);
+            const [weatherData, aqiData, siteNDVI, radiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 8),api.getAirQuality(site.lat, site.lon, 7), getNDVI(site.lat, site.lon, vegTiles), getRadianceValue(site.lat, site.lon, lightTiles)]);
+            
             const travelTime = calculateDriveTime(userLoc, site);
+            const siteWeeklyResults = [];
 
             for (let i = 1; i < 7; i ++) {
                 const checkDate = new Date();
                 checkDate.setUTCDate(checkDate.getUTCDate() + i);
                 checkDate.setUTCHours(12, 0, 0, 0);
                 const hourIndex = (i * 24) + 22;
-                const currentAqiStatus = aqiData.fallback ? {success: true, pm25: 10, fallback: true } : { success: true, pm25: aqiData.hourly?.pm2_5[hourIndex] ?? 10 };
-
 
                 const times = SunCalc.getTimes(checkDate, site.lat, site.lon);
-
                 const nightStart = times.nauticalDusk;
                 const nightEnd = times.nauticalDawn;
-
                 if (!nightStart || !nightEnd || nightStart >= nightEnd) {
                     if (nightStart >= nightEnd) {
                         nightEnd.setDate(nightEnd.getDate() + 1);
                     }
                 };
 
-                const moonIllum = SunCalc.getMoonIllumination(checkDate).fraction;
-
                 const weatherStatus = await checkWeatherWindow(site, nightStart, nightEnd, prefs, weatherData);
+                if (!weatherStatus.success) continue;
 
-                const ndviValue = await api.getNDVI(site.lat, site.lon);
+                const currentAqiStatus = aqiData.fallback ? {success: true, pm25: 10, fallback: true } : { success: true, pm25: aqiData.hourly?.pm2_5[hourIndex] ?? 10 };
+
+                const moonIllum = SunCalc.getMoonIllumination(checkDate).fraction;
 
                 const prefetched = {
                     weather: weatherStatus,
                     aqi: currentAqiStatus,
-                    radiance: site.radiance || 0,
-                    ndvi: ndviValue
+                    radiance: radiance || 0,
+                    ndvi: siteNDVI,
+                    travelTime: travelTime
                 };
 
-                if (weatherStatus.success) {
-                    let score;
+                let score;
 
-                    if (trainedModel) {
-                        const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
+                if (trainedModel) {
+                    const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
+                    if (brainResult && brainResult.sites && brainResult.sites.length > 0) {
                         score = brainResult.sites[0].score || 0;
                         console.log(`AI Score for ${site.name}: ${score}%`);
                     } else {
-                        score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, site.radiance);
+                        console.log(`🧠 AI Skip during Weekly Outlook: ${site.name}`);
+                        continue;
                     }
-
-                    weeklyResults.push({
-                        date: checkDate.toDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric' }),
-                        siteName: site.name,
-                        score: score,
-                        avgTemp: Math.round(weatherStatus.avgTemp),
-                        condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy'
-                });
+                } else {
+                    score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, radiance, siteNDVI);
                 }
+
+                siteWeeklyResults.push({
+                    date: checkDate.toDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric' }),
+                    siteName: site.name,
+                    score: score,
+                    avgTemp: Math.round(weatherStatus.avgTemp),
+                    condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy'
+                });
             }
+            return siteWeeklyResults;
         } catch (e) {
             console.error(`Weekly fetch failed for ${site.name}`, e);
+            return [];
         }
-    } 
-    return weeklyResults;
+    };
+
+    const resultsArray = [];
+    const batchSize = 5;
+
+    for (let i = 0; i < nearbySites.length; i += batchSize) {
+        const batch = nearbySites.slice(i, i + batchSize);
+        const batchPromises = batch.map(site => processSite(site));
+        const batchResults = await Promise.all(batchPromises);
+        resultsArray.push(...batchResults);
+        
+        if (i + batchSize < nearbySites.length) {
+            await new Promise(r => setTimeout(r, 300));
+        }
+    }
+
+    return resultsArray.flat();
 }
 
 export function renderWeeklyOutlook(weeklyData, prefs) {

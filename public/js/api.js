@@ -47,17 +47,15 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
     const radiusMeters = radiusKm * 1000;
 
    const query = `[out:json][timeout:60];
-(
-  // 1. Natural high points and wilderness areas
-  nwr["natural"~"peak|volcano|plateau|ridge|dune"](around:${radiusMeters},${lat},${lon});
-  nwr["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
+    (
+    nwr["natural"~"peak|volcano|plateau|ridge|dune"](around:${radiusMeters},${lat},${lon});
+    nwr["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
   
-  // 2. Scenic viewpoints (often remote)
-  nwr["tourism"="viewpoint"](around:${radiusMeters},${lat},${lon});
-);
-// Filter out features specifically tagged with urban landuse
-nwr._["landuse"!~"residential|industrial|commercial|construction"];
-out center 40;`;
+    nwr["tourism"="viewpoint"](around:${radiusMeters},${lat},${lon});
+    );
+
+    nwr._["landuse"!~"residential|industrial|commercial|construction"];
+    out center 40;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -118,78 +116,4 @@ export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Weather API failed");
     return await response.json();
-}
-
-let cachedVegManifest = null;
-
-/**
- * Loads the list of available NASA tiles from GitHub.
- */
-async function loadVegManifest() {
-    if (cachedVegManifest) return cachedVegManifest;
-    try {
-        const response = await fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json');
-        const data = await response.json();
-        cachedVegManifest = data.available_tiles || data.tiles || [];
-        return cachedVegManifest;
-    } catch (e) {
-        console.error("NDVI Manifest load failed:", e);
-        return [];
-    }
-}
-
-/**
- * Converts lat/lon to NASA NDVI values (-0.2 to 1.0)
- * Scaled for Stella's brain to use as a "nature" score.
- */
-export async function getNDVI(lat, lon) {
-    if (lat === undefined || lon === undefined) return 0.01;
-
-    const manifest = await loadVegManifest();
-
-    // 1. Convert to NASA Sinusoidal Grid (10-degree tiles)
-    const h = Math.floor((lon + 180) / 10);
-    const v = Math.floor((90 - lat) / 10);
-    const tileId = `h${h.toString().padStart(2, '0')}v${v.toString().padStart(2, '0')}`;
-
-    // 2. Check if we have data for this part of the world
-    if (!manifest.includes(tileId)) {
-        return 0.01; // Fallback for ocean/missing tiles
-    }
-
-    try {
-        const url = `https://AndrewMulert.github.io/vegetation_tiles/tiles/${tileId}.json`;
-        const response = await fetch(url);
-        if (!response.ok) return 0.01;
-
-        const tileObj = await response.json();
-        const grid = tileObj.data; // The 2D array from processing
-
-        const rows = grid.length;
-        const cols = grid[0].length;
-
-        // 3. Map lat/lon to specific pixel in the 10x10 degree tile
-        // latPct: 0 at top (north), 1 at bottom (south)
-        // lonPct: 0 at left (west), 1 at right (east)
-        const latPct = ((90 - lat) % 10) / 10;
-        const lonPct = ((lon + 180) % 10) / 10;
-
-        const row = Math.floor(latPct * (rows - 1));
-        const col = Math.floor(lonPct * (cols - 1));
-
-        const safeRow = Math.max(0, Math.min(rows - 1, row));
-        const safeCol = Math.max(0, Math.min(cols - 1, col));
-
-        // 4. Return scaled value
-        // NASA NDVI is stored as Int (e.g. 5000) with 0.0001 scale
-        const rawValue = grid[safeRow][safeCol];
-        const ndvi = rawValue * 0.0001;
-        console.log(`Checking Tile: ${tileId} | Pixel Row: ${safeRow} | Pixel Col: ${safeCol}`);
-        // Return value clamped for AI (don't want negatives breaking weights)
-        return Math.max(0.01, ndvi);
-
-    } catch (error) {
-        console.error("NDVI Fetch error:", error);
-        return 0.01;
-    }
 }
