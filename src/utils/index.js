@@ -63,7 +63,7 @@ const getNav = () => {
                     </button>
                 </div>
             </li>
-            <li class="nav_link_container" id="nav_clock">
+            <li class="nav_link_container hidden" id="nav_clock">
                 <div class="nav_clock_time">
                     <h3 id="home_time"></h3>
                 </div>

@@ -1,10 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap");
+body {
+  margin: 0px;
+}
+
 h1, h2, h3, h4, p, input, a {
   font-family: "Google Sans Flex", "Arial";
 }
 
-ul {
-  list-style-type: none;
+header {
+  margin: 8px;
 }
 
 html {
@@ -15,16 +19,44 @@ footer {
   background-color: #00464D;
 }
 footer p {
+  padding: 15px;
   color: #ffffff;
 }
 
+.ai-status {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 25px;
+  background-color: rgba(53, 53, 53, 0.7490196078);
+  background-image: linear-gradient(rgba(53, 53, 53, 0.7490196078), rgba(21, 21, 21, 0.7490196078));
+  backdrop-filter: blur(10px);
+  display: grid;
+  grid-template-columns: 25px 1fr;
+  align-items: center;
+}
 .ai-status p {
+  grid-column: 2/3;
   color: white;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+.ai-status svg {
+  grid-column: 1/2;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  align-self: center;
 }
 
 .hero {
   background-image: linear-gradient(#008571, #00464D);
   background-color: #00464D;
+  padding: 15px;
+  margin: 10px;
+  border-radius: 25px;
+  width: 100%;
+  max-width: 345px;
+  height: 100%;
+  max-height: 800px;
 }
 .hero h2 {
   color: #ffffff;
@@ -38,18 +70,111 @@ footer p {
   display: none !important;
 }
 
+.nav_bar {
+  margin: 0px 10px 0px 10px;
+}
 .nav_clock_time {
   color: #ffffff;
   background-image: linear-gradient(#00464D, #00131A);
   background-color: #00131A;
+}
+.nav_items {
+  list-style-type: none;
+  padding: 0px 0px 0px 0px;
+  overflow: hidden;
+}
+.nav_link_container {
+  float: left;
+}
+.nav_link_container div {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 10px 10px;
+}
+.nav_link_container a {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 10px 10px;
+}
+.nav_search_bar {
+  display: flex !important;
+  height: 50px;
+  width: 220px;
+  align-items: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+.nav_search_bar button {
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  width: 50px;
+  padding: 0px;
+  border-radius: 0px 25px 25px 0px;
+  border: 0px;
+  margin: 0px;
+  display: flex;
+  flex-shrink: 0;
+  background-color: #ffffff;
+}
+.nav_search_bar input {
+  box-sizing: border-box;
+  display: block;
+  height: 50px;
+  padding: 0 15px;
+  border-radius: 25px 0px 0px 25px;
+  border: 0px;
+  font-size: 18px;
+  width: 170px;
+  line-height: 40px;
+  margin: 0px;
+  flex-shrink: 0;
 }
 
 .spinner {
   animation: spin 1s linear infinite;
 }
 
+#hero_details {
+  display: flex;
+  align-self: center;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 #nav_profile {
   background-color: #59FFE5;
+  height: 50px;
+  width: 50px;
+  border-radius: 25px;
+  float: right;
+  margin-right: 5px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+#weekly_outlook {
+  height: 100%;
+  max-height: 390px;
+  width: 100%;
+  max-width: 325px;
+  padding: 10px;
+  border-radius: 10px;
+  color: #ffffff;
+  background-color: #3C0085;
+  background-image: linear-gradient(#3C0085, #000066);
+  overflow: scroll;
+  overflow-x: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+#weekly_outlook::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes spin {

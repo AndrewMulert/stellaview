@@ -5,16 +5,22 @@ $base-secondary: #59FFE5;
 $medium-secondary: #008571;
 $dark-secondary: #00464D;
 $darker-secondary: #00131A;
-$medium-grey: #353535;
-$dark-grey: #151515;
+$medium-tertiary: #3C0085;
+$dark-tertiary: #000066;
+$medium-grey: #353535bf;
+$dark-grey: #151515bf;
 $white: #ffffff;
+
+body{
+    margin: 0px;
+}
 
 h1, h2, h3, h4, p, input, a {
     font-family: 'Google Sans Flex', 'Arial';
 }
 
-ul{
-    list-style-type: none;
+header{
+    margin: 8px;
 }
 
 html{
@@ -24,19 +30,48 @@ html{
 footer{
     background-color: $dark-secondary;
     & p{
+        padding: 15px;
         color: $white;
     }
 }
 
 .ai-status{
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 25px;
+    background-color: $medium-grey;
+    background-image: linear-gradient($medium-grey, $dark-grey);
+    backdrop-filter: blur(10px);
+    display: grid;
+    grid-template-columns: 25px 1fr;
+    align-items: center;
+
     p{
+        grid-column: 2 /3;
         color: white;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    svg {
+        grid-column: 1 /2;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        align-self: center;
     }
 }
 
 .hero{
     background-image: linear-gradient($medium-secondary, $dark-secondary);
     background-color: $dark-secondary;
+    padding: 15px;
+    margin: 10px;
+    border-radius: 25px;
+    width: 100%;
+    max-width: 345px;
+    height: 100%;
+    max-height: 800px;
+
 
     & h2{
         color: $white;
@@ -52,19 +87,124 @@ footer{
     display: none !important;
 }
 
-.nav_clock_time{
-    color: $white;
-    background-image: linear-gradient($dark-secondary, $darker-secondary);
-    background-color: $darker-secondary;
+.nav{
+    &_bar{
+        margin: 0px 10px 0px 10px;
+    }
+    &_clock_time{
+        color: $white;
+        background-image: linear-gradient($dark-secondary, $darker-secondary);
+        background-color: $darker-secondary;
+    }
+
+    &_items {
+        list-style-type: none;
+        padding: 0px 0px 0px 0px;
+        overflow: hidden;
+    }
+
+    &_link_container {
+        float: left;
+
+        & div {
+            display: block;
+            text-align: center;
+            text-decoration: none;
+            padding: 10px 10px;
+        }
+
+        & a {
+            display: block;
+            text-align: center;
+            text-decoration: none;
+            padding: 10px 10px;
+        }
+    }
+
+    &_search_bar{
+        display: flex !important;
+        height: 50px;
+        width: 220px;
+        align-items: center;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow: visible;
+
+        & button{
+            box-sizing: border-box;
+            align-items: center;
+            justify-content: center;
+            height: 50px;
+            width: 50px;
+            padding: 0px;
+            border-radius: 0px 25px 25px 0px;
+            border: 0px;
+            margin: 0px;
+            display: flex;
+            flex-shrink: 0;
+            background-color: $white;
+        }
+
+        & input{
+            box-sizing: border-box;
+            display: block;
+            height: 50px;
+            padding: 0 15px;
+            border-radius: 25px 0px 0px 25px;
+            border: 0px;
+            font-size: 18px;
+            width: 170px;
+            line-height: 40px;
+            margin: 0px;
+            flex-shrink: 0;
+        }
+    }
 }
 
 .spinner {
     animation: spin 1s linear infinite;
 }
 
+#hero{
+    &_details{
+        display: flex;
+        align-self: center;
+        justify-content: center;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
 #nav{
     &_profile{
         background-color: $base-secondary;
+        height: 50px;
+        width: 50px;
+        border-radius: 25px;
+        float: right;
+        margin-right: 5px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+}
+
+#weekly_outlook{
+    height: 100%;
+    max-height: 390px;
+    width: 100%;
+    max-width: 325px;
+    padding: 10px;
+    border-radius: 10px;
+    color: $white;
+    background-color: $medium-tertiary;
+    background-image: linear-gradient($medium-tertiary, $dark-tertiary);
+    overflow: scroll;
+    overflow-x: hidden;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
     }
 }
 
