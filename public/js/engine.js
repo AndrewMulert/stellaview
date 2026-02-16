@@ -41,6 +41,11 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 }
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
+    const weeklyContainer = document.querySelector("#weekly-outlook");
+    if (weeklyContainer) weeklyContainer.classList.add('hidden');
+    const grid = document.getElementById('weekly_grid');
+    grid.innerHTML = '';
+
     /*A running talley of why locations may fail to determine the overall reason for failure*/
     let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");

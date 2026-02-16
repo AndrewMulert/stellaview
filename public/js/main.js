@@ -272,6 +272,7 @@ const updateUI = async (coords, prefs) => {
 
         console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
 
+        
         if (weeklyContainer) weeklyContainer.classList.remove('hidden');
 
         statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week...";
