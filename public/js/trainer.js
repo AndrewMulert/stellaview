@@ -10,11 +10,16 @@ export function generateMockHistory(numSamples = 500) {
             illumination: Math.random(),
             publicRating: Math.random() * 5,
             userRating: Math.random() * 5,
-            travelTime: Math.random() * 300
+            travelTime: Math.random() * 300,
+            duration: Math.random() * 6,
+            startHour: 18 + (Math.random() * 12)
         };
 
         const darknessFactor = Math.max(0,  1 - (Math.log10(scenario.radiance + 1) / 2.5 ));
         const normTravel = Math.max(0, 1 - (scenario.travelTime / 300));
+
+        const normDuration = Math.min(scenario.duration / 6, 1);
+        const normStart = 1 - ((scenario.startHour - 18) / 12);
 
         const inputVector = [
             darknessFactor,
@@ -24,18 +29,22 @@ export function generateMockHistory(numSamples = 500) {
             Math.max(0, 1 - (Math.abs(scenario.temp - 68) / 40)),
             scenario.publicRating / 5,
             scenario.userRating / 5,
-            normTravel
+            normTravel,
+            normDuration,
+            normStart
         ];
 
-        let score = (10 * darknessFactor) 
-            - (scenario.clouds / 20) 
+        let score = (darknessFactor * 15) 
+            + (normDuration * 12)
+            + (normStart * 8)
+            - (scenario.clouds / 5) 
             - (scenario.pm25 /10) 
             - (Math.abs(scenario.temp - 68) * 0.1)
-            - (scenario.travelTime / 10);
+            - (scenario.travelTime / 150);
         
         score += (scenario.publicRating * 0.5) + (scenario.userRating * 1.0);
 
-        const normalizedOutput = Math.max(0, Math.min(1, score / 15));
+        const normalizedOutput = Math.max(0, Math.min(1, score / 35));
 
         trainingData.push({ input: inputVector, output: [normalizedOutput] });
     }

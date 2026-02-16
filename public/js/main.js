@@ -44,7 +44,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.2-improved_time";
+        const MODEL_VERSION = "2.1.3-duration_data";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
@@ -141,12 +141,11 @@ function displayResults(sites, prefs) {
         }
 
         const driveTime = site.travelTime || 0;
-        const leadTime = prefs.departureLeadTime || 30;
 
-        const leaveDate = new Date(targetArrival.getTime() - (driveTime + leadTime) * 60000);
+        const leaveDate = new Date(targetArrival.getTime() - (driveTime) * 60000);
 
         const cloudVal = (site.avgClouds !== undefined && site.avgClouds !== null) ? Math.round(site.avgClouds) : '--';
-        const tempDisplay = Math.round(site.avgTemp) || '--';
+        const tempDisplay = (site.avgTemp !== undefined && site.avgTemp !== null) ? Math.round(site.avgTemp) : '--';
 
         const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
         const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
@@ -162,6 +161,9 @@ function displayResults(sites, prefs) {
             <p><strong>Conditions: </strong> ${tempDisplay} °F / ${cloudVal}% clouds</p>
             <p><strong>Drive Time:</strong> ~${site.travelTime} mins</p>
             <p class="leave-time">Leave by: ${leaveStr}</p>
+            <div>
+            <a href="${site.mapUrl}" target="_blank">Directions</a>
+            </div>
         `;
         container.appendChild(card);
     });
@@ -217,6 +219,10 @@ const updateUI = async (coords, prefs) => {
     const date = new Date();
     statusText.innerText = "🔦 Looking for Stargazing Sites...";
     const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, prefs.maxDriveTime);
+    if (allSites.length === 0) {
+        statusText.innerText = "🔧 Dark sky servers are busy. Retrying...";
+        return;
+    }
     console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);
 
     let results;

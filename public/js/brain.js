@@ -1,6 +1,6 @@
 import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js';
 import { checkWeatherWindow, checkAirQuality } from './engine.js';
-import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs} from './utils.js';
+import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes} from './utils.js';
 import { generateMockHistory } from './trainer.js';
 
 const tf = window.tf;
@@ -12,7 +12,7 @@ export async function trainStellaBrain() {
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 12, inputShape: [8], activation: 'relu'}));
+    model.add(tf.layers.dense({ units: 12, inputShape: [10], activation: 'relu'}));
     model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
@@ -50,10 +50,18 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const manifest = await indexResponse.json();
     const tiles = manifest.tiles;
 
+    const roadTimes = await getActualDriveTimes(userLoc, allSites);
+
     const validSites = [];
 
-    for (const site of allSites) {
-        const travelTime = Math.round(calculateDriveTime(userLoc, site));
+    for (let i = 0; i < allSites.length; i++) {
+        const site = allSites[i];
+
+
+        let travelTime = (roadTimes && roadTimes[i] !== undefined) ? Math.round(roadTimes[i]) : Math.round(calculateDriveTime(userLoc, site));
+
+        const origin = `${userLoc.lat},${userLoc.lon}`;
+        const destination = `${site.lat},${site.lon}`;
 
         let weather, aqi, radiance;
 
@@ -77,15 +85,22 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
         if (weather.success && aqi.success) {
 
+            const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[hourIndex] || 5 : 5;
+
             const brainStats = {
                 clouds: weather.avgClouds,
                 temp: (prefs.tempUnit === 'celsius') ? (weather.avgTemp * 9/5) + 32 : weather.avgTemp, 
-                pm25: aqi.pm25
+                pm25: pm25Value
             };
 
+            const aqiDataForBrain = { ...aqi, pm25: pm25Value };
 
             const moonIllum = getMoonIllumination(startOfNight);
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqi);
+
+            const now = new Date();
+            const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
+
+            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset);
 
             if (inputData.some(val => isNaN(val))) {
                 console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);
@@ -121,13 +136,16 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
             validSites.push({
                 ...site,
+                radiance: radiance,
+                bortle: radianceToBortle(radiance),
                 rawScore: finalScore,
                 travelTime: travelTime,
                 bestTime: weather.bestTime,
                 duration: weather.duration,
                 avgTemp: weather.avgTemp,
                 avgClouds: weather.avgClouds,
-                clouds: weather.avgClouds
+                clouds: weather.avgClouds,
+                mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
             });
 
             inputTensor.dispose();

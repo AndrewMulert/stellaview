@@ -27,39 +27,69 @@ export async function getBortleFromRadiance(lat, lon){
     return radianceAlgorithm(lat, lon);
 }
 
-export async function getNearbyDarkPlaces(lat, lon, radiusKm) {
+export async function getDrivingDistance(coordinates) {
+    const url = `https://router.project-osrm.org/table/v1/driving/${coordinates}?sources=0`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.code !== 'Ok') return null;
+
+        return data.durations[0].slice(1).map(seconds => seconds / 60);
+    } catch (e) {
+        console.error("OSRM Error:", e);
+        return null;
+    }
+}
+
+export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
     const radiusMeters = radiusKm * 1000;
 
     const query = `[out:json][timeout:60];
     (
-        nwr["boundary"~"national_park|wilderness_area"](around:40000,${lat},${lon});
-        nwr["natural"~"peak|plateau"](around:40000,${lat},${lon});
-        nwr["landuse"="conservation"](around:40000,${lat},${lon});
+        nwr["boundary"~"national_park|wilderness_area"](around:${radiusMeters},${lat},${lon});
+        nwr["natural"~"peak|plateau"](around:${radiusMeters},${lat},${lon});
+        nwr["landuse"="conservation"](around:${radiusMeters},${lat},${lon});
     );
     out center 20;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
-    try{
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("OSM Network Response Error");
-        const data = await response.json();
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url);
+            
+            if (response.status === 504 || response.status === 429) {
+                const waitTime = (i + 1) * 2000;
+                console.warn(`🔄 Overpass busy. Retry ${i+1}/${retries} in ${waitTime}ms...`);
+                await new Promise(res => setTimeout(res, waitTime));
+                continue; 
+            }
 
-        return data.elements.map(el => {
-            const latVal = el.lat || (el.center ? el.center.lat : null);
-            const lonVal = el.lon || (el.center ? el.center.lon : null);
+            if (!response.ok) throw new Error("OSM Network Response Error");
+            
+            const data = await response.json();
 
-            return {
-                name: el.tags.name || "Remote Dark Spot",
-                lat: latVal,
-                lon: lonVal,
-                type: el.tags.leisure || el.tags.natural || "park",
-                bortle: 4
-            };
-        }).filter(site => site.lat && site.lon);
-    } catch (e) {
-        console.error("Failed to fetch OSM sites:", e);
-        return [];
+            return data.elements.map(el => {
+                const latVal = el.lat || (el.center ? el.center.lat : null);
+                const lonVal = el.lon || (el.center ? el.center.lon : null);
+
+                return {
+                    name: el.tags.name || "Remote Dark Spot",
+                    lat: latVal,
+                    lon: lonVal,
+                    type: el.tags.leisure || el.tags.natural || "park",
+                    bortle: 4
+                };
+            }).filter(site => site.lat && site.lon);
+
+        } catch (e) {
+            if (i === retries - 1) {
+                console.error("❌ OSM Fetch failed after retries:", e);
+                return [];
+            }
+        }
     }
 }
 

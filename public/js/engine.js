@@ -285,7 +285,7 @@ export async function checkAirQuality(site) {
         return { success: true, pm25: 10, fallback: true };
     }
 
-    const hourlyList = aqiData.hourly?.pm_2_5;
+    const hourlyList = aqiData.hourly?.pm2_5;
 
     if (!hourlyList || hourlyList.length === 0) {
         console.warn(`⚠️ No AQI data found for ${site.name}, using fallback.`);

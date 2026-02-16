@@ -1,3 +1,5 @@
+import * as api from "./api.js";
+
 export function calculateDriveTime(loc1, loc2) {
     const R = 3958.8;
     const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
@@ -7,6 +9,12 @@ export function calculateDriveTime(loc1, loc2) {
     const distanceMiles = R * c;
 
     return (distanceMiles / 45) * 60;
+}
+
+export async function getActualDriveTimes(userLoc, sites) {
+    const coordinates = `${userLoc.lon},${userLoc.lat};` + sites.map(s => `${s.lon},${s.lat}`).join(';');
+    const data = await api.getDrivingDistance(coordinates);
+    return data;
 }
 
 export function calculateFahrenheit(temp) {
@@ -19,25 +27,30 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
 
     const contextualIdeal = (monthlyAvg + 68) /2;
 
-    const range = (maxPref - minPref) / 2;
-    const diff = Math.abs(currentTemp - contextualIdeal);
+    const sigma = (maxPref - minPref) / 4;
+    const score  = Math.exp(-Math.pow(currentTemp - contextualIdeal, 2) / (2 * Math.pow(sigma, 2)));
 
-    return Math.max(0, 1 - (diff / range));
+    return score;
 }
 
-export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus) {
+export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset) {
     const logRad = Math.log10(radiance + 1);
     const normRadiance = Math.max(0, 1 - (logRad / 2.5));
 
     const cloudVal = weather.avgClouds ?? weather.clouds ?? 100; 
     const normClouds = Math.max(0, (100 - cloudVal) / 100);
 
+    const normStart = Math.max(0, 1 -(startOffset / 12));
+
+    const duration = weather.duration || 0;
+    const normDuration = duration <= 1 ? 0 : Math.min((duration -1) / 5, 1);
+
     const pm25Raw = aqiStatus?.pm25;
     const safePm25 = (typeof pm25Raw !== 'number' || isNaN(pm25Raw)) ? 10 : pm25Raw;
     const normAQI = Math.max(0, (100 - safePm25) / 100);
 
     const mIllum = (moonIllum !== undefined) ? moonIllum : 1.0;
-    const normMoon = (1 - mIllum);
+    const normMoon = Math.pow(1 - mIllum, 2);
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
     
@@ -45,11 +58,11 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, monthlyAvg);
 
     const normPublic =  (site.rating !== undefined) ? site.rating / 5 : 0.5;
-    const normUser = (site.userRating !== undefined) ? site.rating / 5 : 0.5;
+    const normUser = (site.userRating !== undefined) ? site.userRating / 5 : 0.5;
 
-    const normTravel = Math.max(0, 1 - (travelTime / 300));
+    const normTravel = Math.max(0, 1 - (travelTime / prefs.maxDriveTime));
 
-    return [normRadiance, normClouds, normAQI, normMoon, normTemp, normPublic, normUser, normTravel];
+    return [normRadiance, normClouds, normAQI, normMoon, normTemp, normPublic, normUser, normTravel, normDuration, normStart];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
@@ -92,6 +105,14 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
 export function bortleToRadiance(bortle) {
     if (bortle <= 1) return 0.1;
     return parseFloat(Math.pow(10, (bortle / 3.3) - 0.5).toFixed(2));
+}
+
+export function radianceToBortle(radiance) {
+    if (radiance <= 0.1) return 1;
+
+    const calculatedBortle = 3.3 * (Math.log10(radiance) + 0.5);
+
+    return Math.max(1, Math.min(9, Math.round(calculatedBortle)));
 }
 
 export function getMoonIllumination(date) {
