@@ -221,7 +221,24 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
         }
     }
 
-    return resultsArray.flat();
+    const flatResults = resultsArray.flat();
+
+    const groupedByDate = flatResults.reduce((acc, item) => {
+        if (!acc[item.date]) acc[item.date] = [];
+        acc[item.date].push(item);
+        return acc;
+    }, {});
+
+    const availableDates = Object.keys(groupedByDate);
+
+    if (availableDates.length > 0) {
+        const nearestDate = availableDates[0];
+
+        const bestOfNearestDay = groupedByDate[nearestDate].sort((a, b) => b.score - a.score).slice(0, 5);
+        return bestOfNearestDay;
+    }
+
+    return [];
 }
 
 export function renderWeeklyOutlook(weeklyData, prefs) {

@@ -37,6 +37,8 @@ timeUpdater();
 setInterval(timeUpdater, 1000);
 
 let trainedModel = null;
+let currentSearchId = 0;
+let activeAbortController = null;
 
 async function initAI() {
     const loader = document.getElementById('ai-loader');
@@ -102,11 +104,14 @@ async function runStargazingEngine() {
         return;
     }
 
+    currentSearchId++;
+    const thisSearchId = currentSearchId;
+
     navigator.geolocation.getCurrentPosition(async (pos) => {
         statusText.innerText = "📌 Location Received...";
         console.log("Step 4: Location received!", pos.coords.latitude, pos.coords.longitude);
         const userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        await updateUI(userLoc, prefs);
+        await updateUI(userLoc, prefs, thisSearchId);
     },
     async (err) => {
         let errorType = "Unknown Error";
@@ -140,7 +145,7 @@ function displayResults(sites, prefs) {
             targetArrival = new Date();
         }
 
-        const driveTime = site.travelTime || 0;
+        const driveTime = Math.round(site.travelTime || 0);
 
         const leaveDate = new Date(targetArrival.getTime() - (driveTime) * 60000);
 
@@ -159,7 +164,7 @@ function displayResults(sites, prefs) {
             <p><strong>Viewing Starts:</strong> ${viewingStr}</p>
             <p><strong>Window:</strong> ${site.duration || '0'} hours of clear sky</p>
             <p><strong>Conditions: </strong> ${tempDisplay} °F / ${cloudVal}% clouds</p>
-            <p><strong>Drive Time:</strong> ~${site.travelTime} mins</p>
+            <p><strong>Drive Time:</strong> ~${driveTime} mins</p>
             <p class="leave-time">Leave by: ${leaveStr}</p>
             <div>
             <a href="${site.mapUrl}" target="_blank">Directions</a>
@@ -183,18 +188,49 @@ async function handleSearch() {
     const query = document.querySelector("#location_input").value;
     if (!query) return;
 
+    currentSearchId++;
+    const thisSearchId = currentSearchId;
+
+    if (activeAbortController) activeAbourtController.abort();
+    activeAbortController = new AbortController();
+    
+    const decisionSpan = document.querySelector("#hero_decision");
+    const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
-    statusText.innerText ="🔍 Starting new search...";
+    const spinner = loader.querySelector(".spinner");
+    const weeklyContainer = document.querySelector("#weekly_outlook");
+
+    if (decisionSpan) {
+        decisionSpan.textContent = "The universe is calling; let’s find where it’s clearest.";
+    }
+
+    if (weeklyContainer) {
+        weeklyContainer.classList.add('hidden');
+        weeklyContainer.innerHTML = "";
+    }
+
+    if (loader) {
+        loader.classList.remove('hidden');
+    }
+
+    if (spinner) {
+        spinner.classList.remove('hidden');
+    }
+
+    if (statusText) {
+        statusText.innerText = "🔍 Starting new search...";
+    }
 
     console.log(`Searching for: ${query}...`);
 
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
-
     try {
-        const response = await fetch(url, { headers: { 'User-Agent': 'StellaView-App'}});
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'StellaView-App'}, signal: activeAbortController.signal});
         const data = await response.json();
 
         if (data.length > 0) {
+            if (thisSearchId !== currentSearchId) return;
+
             const newCoords = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon)};
             console.log("Found location:", data[0].display_name);
             statusText.innerText = "📌 Location found...";
@@ -204,21 +240,33 @@ async function handleSearch() {
 
         } else {
             alert("Location not found. Try a different city!");
+            loader.classList.add('hidden');
         }
     } catch (err) {
-        console.error("Search failed:", err);
+        if (err.name === 'AbortError') console.log("Old search aborted.");
+        else console.error("Search failed:", err);
     }
 }
 
-const updateUI = async (coords, prefs) => {
+const updateUI = async (coords, prefs, sessionId = null) => {
+    if (sessionId && sessionId !== currentSearchId) {
+        console.log(`Stopping old session: ${sessionId}`);
+        return;
+    }
+
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
-    const weeklyContainer = document.querySelector("#weekly-outlook");
+    const weeklyContainer = document.querySelector("#weekly_outlook");
+
+    loader.classList.remove('hidden');
+    statusText.innerText = "🔦 Looking for Stargazing Sites...";
 
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
     const date = new Date();
-    statusText.innerText = "🔦 Looking for Stargazing Sites...";
     const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, prefs.maxDriveTime);
+
+    if (sessionId !== null && sessionId !== currentSearchId) return;
+
     if (allSites.length === 0) {
         statusText.innerText = "🔧 Dark sky servers are busy. Retrying...";
         return;
@@ -239,12 +287,23 @@ const updateUI = async (coords, prefs) => {
 
     const { sites, topFailure} = results;
 
+    const sorted = sites.sort((a, b) => b.score - a.score);
+    const topSite = sorted[0];
+    const otherSites = sorted.slice(1, 5);
+
     const container = document.querySelector("#results-container");
+    const featuredContainer = document.querySelector("#feature-container");
     if (container) container.innerHTML = "";
+    if (featuredContainer) container.innerHTML = "";
 
     if (sites.length > 0) {
         decisionSpan.textContent = "Tonight is a good night for stargazing.";
-        displayResults(sites, prefs);
+
+        if (featuredContainer && topSite) {
+            renderFeaturedSite(topSite, featuredContainer);
+        }
+
+        displayResults(otherSites, prefs);
 
         if (weeklyContainer) weeklyContainer.classList.add('hidden');
 
@@ -296,6 +355,43 @@ const updateUI = async (coords, prefs) => {
         }, 3000);
     }
 };
+
+function renderFeaturedSite(site, container) {
+    let rawDate = site.bestTime;
+    let targetArrival;
+
+    if (rawDate instanceof Date) {
+        targetArrival = rawDate;
+    } else if (typeof rawDate === "string") {
+        const formatted = rawDate.includes('T') ? rawDate : rawDate.replace(' ', 'T') + 'Z';
+        targetArrival = new Date(formatted);
+    } else {
+        targetArrival = new Date();
+    }
+
+    const driveTime = Math.round(site.travelTime || 0);
+
+    const leaveDate = new Date(targetArrival.getTime() - (driveTime) * 60000);
+
+    const cloudVal = (site.avgClouds !== undefined && site.avgClouds !== null) ? Math.round(site.avgClouds) : '--';
+    const tempDisplay = (site.avgTemp !== undefined && site.avgTemp !== null) ? Math.round(site.avgTemp) : '--';
+
+    const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
+    const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
+    const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
+
+    container.innerHTML = `
+    <div class="featured-card">
+    <h3>${site.name} <span class="top_Score">(${site.score}% Match)</span></h3>
+    <p class=top_Temp>${site.avgTemp}°F</p>
+    <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p>
+    <p><strong>Viewing Starts:</strong> ${viewingStr}</p>
+    <p><strong>Window:</strong> ${site.duration || '0'} hours of clear sky</p>
+    <p><strong>${cloudVal}% clouds</p>
+    <p><strong>Drive Time:</strong> ~${driveTime} mins</p>
+    <p class="leave-time">Leave by: ${leaveStr}</p>
+    `
+}
 
 document.addEventListener('click', (e) => {
     if (e.target.closest('#search_btn')) {

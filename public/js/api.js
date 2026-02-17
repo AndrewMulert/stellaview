@@ -94,7 +94,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                     type: el.tags.leisure || el.tags.natural || "park",
                     bortle: 4
                 };
-            }).filter(site => site.lat && site.lon);
+            }).filter(site => site && site.lat && site.lon);
 
         } catch (e) {
             if (i === retries - 1) {
