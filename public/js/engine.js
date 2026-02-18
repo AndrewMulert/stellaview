@@ -43,8 +43,6 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     const weeklyContainer = document.querySelector("#weekly-outlook");
     if (weeklyContainer) weeklyContainer.classList.add('hidden');
-    const grid = document.getElementById('weekly_grid');
-    grid.innerHTML = '';
 
     /*A running talley of why locations may fail to determine the overall reason for failure*/
     let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
@@ -270,26 +268,24 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
         const card = document.createElement('div');
 
         const isChamp = item.siteName === absoluteBestName;
-        card.className =   `weekly-card ${isChamp ? 'champion-highlight' : ''}`;
+        card.className =   `weekly-card`;
 
         card.innerHTML = `
-            <h3 class="date">${isChamp ? `${item.date}` : ''}</h3>
-            <h2 class="site-name">${item.siteName} <span>(${item.score}% Match)</span></h2>
-            <div class="weekly_stats">
-                <p class="weekly_stats_temp">${item.avgTemp} °${unit}</p>
-                <div class="weekly_stats_bortle">
+            <h2 class="card_date">${isChamp ? `${item.date}` : ''}</h2>
+            <h3>${item.siteName} <span>(${item.score}% Match)</span></h3>
+                <p class="card_temp">${item.avgTemp} °${unit}</p>
+                <div class="card_bortle">
                     <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
                     <p><strong>Bortle:</strong> ${item.bortle}</p>
                 </div>
-                <div class="weekly_stats_cloud">
+                <div class="card_cloud">
                     <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_cloudy.svg"></image></svg>
                     <p><strong>${item.avgClouds}%</strong> clouds</p>
                 </div>
-                <div class="weekly_stats_direction">
+                <div class="card_directions">
                     <a href="${item.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
                     <p class="weekly_stats_directions"><a href="${item.mapUrl}" target="_blank"><strong>Directions</strong></a></p>
                 </div>
-            </div>
         `;
         grid.appendChild(card);
     });
