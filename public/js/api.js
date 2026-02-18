@@ -22,11 +22,6 @@ export async function getAirQuality(lat, lon, days = 7) {
     }
 }
 
-export async function getBortleFromRadiance(lat, lon){
-    
-    return radianceAlgorithm(lat, lon);
-}
-
 export async function getDrivingDistance(coordinates) {
     const url = `https://router.project-osrm.org/table/v1/driving/${coordinates}?sources=0`;
 
@@ -46,15 +41,16 @@ export async function getDrivingDistance(coordinates) {
 export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
     const radiusMeters = radiusKm * 1000;
 
-   const query = `[out:json][timeout:60];
+    const query = `[out:json][timeout:30];
     (
-    nwr["natural"~"peak|volcano|plateau|ridge|dune"](around:${radiusMeters},${lat},${lon});
-    nwr["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
+        nwr["leisure"~"nature_reserve|park"](around:${radiusMeters},${lat},${lon});
+        nwr["boundary"~"national_park|protected_area"](around:${radiusMeters},${lat},${lon});
   
-    nwr["tourism"="viewpoint"](around:${radiusMeters},${lat},${lon});
+        nwr["tourism"="viewpoint"]["access"!~"private|no"](around:${radiusMeters},${lat},${lon});
+  
+        nwr["natural"="peak"]["access"!~"private|no"](around:${radiusMeters},${lat},${lon});
     );
-
-    nwr._["landuse"!~"residential|industrial|commercial|construction"];
+    nwr._["landuse"!~"residential|farmyard|construction"];
     out center 40;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
@@ -78,26 +74,41 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                 const tags = el.tags || {};
                 const name = (tags.name || "").toLowerCase();
                 const landuse = (tags.landuse || "").toLowerCase();
-                const latVal = el.lat || (el.center ? el.center.lat : null);
-                const lonVal = el.lon || (el.center ? el.center.lon : null);
+
+                const privateKeywords = ["ranch", "farm", "estate", "residence", "private", "club", "driveway"];
+                if (privateKeywords.some(word => name.includes(word))) return null;
+
+                const isOfficial = /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || tags.leisure === "nature_reserve" || tags.boundary === "protected_area";
 
                 const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
 
-                const isSketchy = blacklist.some(word => name.includes(word) || landuse.includes(word));
+                if (blacklist.some(word => name.includes(word) || landuse.includes(word))) return null;
 
-                if (isSketchy) return null
+                if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name}`);
 
                 return {
-                    name: el.tags.name || "Remote Dark Spot",
-                    lat: latVal,
-                    lon: lonVal,
-                    type: el.tags.leisure || el.tags.natural || "park",
-                    bortle: 4
+                    name: tags.name || "Remote Dark Spot",
+                    lat: el.lat || (el.center ? el.center.lat : null),
+                    lon: el.lon || (el.center ? el.center.lon : null),
+                    type: tags.leisure || tags.natural || "park",
+                    trustFactor: isOfficial ? 1.0: 0.5
                 };
             }).filter(site => site && site.lat && site.lon);
 
         } catch (e) {
             if (i === retries - 1) {
+                const loader = document.getElementById('ai-loader');
+                const statusText = document.getElementById('ai-status-text');
+
+                loader.classList.remove('hidden');
+                const spinner = loader.querySelector(".spinner");
+                if (spinner) spinner.classList.add('hidden');
+                statusText.innerText = "❌ Request failed. Please refresh and try again.";
+                setTimeout(() => {
+                    loader.classList.add('hidden')
+
+                    if (spinner) spinner.classList.remove('hidden');
+                }, 3000);
                 console.error("❌ OSM Fetch failed after retries:", e);
                 return [];
             }

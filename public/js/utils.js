@@ -33,7 +33,7 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
     return score;
 }
 
-export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI) {
+export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5) {
     if (travelTime > prefs.maxDriveTime) return null;
     
     const logRad = Math.log10(radiance + 1);
@@ -64,16 +64,19 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const monthlyAvg = weather.monthlyAvg || 40;
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, monthlyAvg);
 
+    const normTrust = trustFactor;
+
     const normPublic =  (site.rating !== undefined) ? site.rating / 5 : 0.5;
     const normUser = (site.userRating !== undefined) ? site.userRating / 5 : 0.5;
 
     const normTravel = Math.max(0, 1 - (travelTime / 120));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normPublic, normUser, normTravel, normDuration, normStart];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust, normPublic, normUser, normTravel, normDuration, normStart];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
     const STEP = 5;
+    const SAMPLE_SIZE = 4;
 
     const latTile = Math.floor(lat / STEP) * STEP;
     const lonTile = Math.floor(lon / STEP) * STEP;
@@ -89,20 +92,36 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
         if (!response.ok) return 0.01;
 
         const gridData = await response.json();
-
         const rows = gridData.length;
         const cols = gridData[0].length;
 
         const latPct = 1 - ((lat - latTile) / STEP);
         const lonPct = (lon - lonTile) / STEP;
+        const centerRow = Math.floor(latPct * (rows - 1));
+        const centerCol = Math.floor(lonPct * (cols - 1));
 
-        const row = Math.floor(latPct * (rows - 1));
-        const col = Math.floor(lonPct * (cols - 1));
+        let totalRadiance = 0;
+        let samples = 0;
 
-        const safeRow = Math.max(0, Math.min(rows - 1, row));
-        const safeCol = Math.max(0, Math.min(cols - 1, col));
+        for (let rd = -SAMPLE_SIZE; rd <= SAMPLE_SIZE; rd++) {
+            for (let cd = -SAMPLE_SIZE; cd <= SAMPLE_SIZE; cd++){
+                const r = centerRow + rd;
+                const c = centerCol + cd;
 
-        return gridData[safeRow][safeCol];
+                if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                    const val = gridData[r][c];
+
+                    const distance = Math.sqrt(rd * rd + cd * cd) || 1;
+                    const weight = 1 / distance;
+
+                    totalRadiance += val * weight;
+                    samples += weight;
+                }
+            }
+        }
+
+        if (samples === 0) return gridData[centerRow][centerCol];
+        return totalRadiance / samples;
     } catch (error){
         console.error("Radiance fetch error:", error);
         return 0.01;

@@ -12,8 +12,8 @@ export async function trainStellaBrain() {
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 12, inputShape: [11], activation: 'relu'}));
-    /*model.add(tf.layers.dense({ units: 8, activation: 'relu' }));*/
+    model.add(tf.layers.dense({ units: 16, inputShape: [12], activation: 'relu'}));
+    model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
     model.compile({
@@ -116,7 +116,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const now = new Date();
             const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
 
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI);
+            const trustFactor = site.trustFactor || 0.5;
+
+            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor);
 
             if (inputData.some(val => isNaN(val))) {
                 console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);

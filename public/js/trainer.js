@@ -13,7 +13,8 @@ export function generateMockHistory(numSamples = 1000) {
             userRating: Math.random() * 5,
             travelTime: Math.random() * 120,
             duration: Math.random() * 6,
-            startHour: 18 + (Math.random() * 12)
+            startHour: 18 + (Math.random() * 12),
+            trustFactor: Math.random() < 0.3 ? 0.5 : 1.0
         };
 
         const darknessFactor = Math.max(0, 1 - (Math.log10(scenario.radiance + 1) / 2.5));
@@ -30,16 +31,21 @@ export function generateMockHistory(numSamples = 1000) {
 
         const inputVector = [
             darknessFactor, normNDVI, normClouds, normAQI, normMoon, 
-            normTemp, scenario.publicRating / 5, scenario.userRating / 5, 
+            normTemp, scenario.trustFactor, scenario.publicRating / 5, scenario.userRating / 5, 
             normTravel, scenario.duration / 6, 1 - ((scenario.startHour - 18) / 12)
         ];
 
         let score = (darknessFactor * 20)
+            + (scenario.trustFactor * 40)
             + (normNDVI * 15)
             + (normClouds * 15) 
             + (normMoon * 10)
             + (normTravel * 10)
             + (normAQI * 5);
+
+        if (scenario.trustFactor < 0.6 ) {
+            score = score * 0.4;
+        }
 
         const normalizedOutput = Math.max(0, Math.min(1, score / 60)); 
 
