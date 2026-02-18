@@ -192,12 +192,19 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, radiance, siteNDVI);
                 }
 
+                const origin = `${userLoc.lat},${userLoc.lon}`;
+                const destination = `${site.lat},${site.lon}`;
+                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+
                 siteWeeklyResults.push({
                     date: checkDate.toDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric' }),
                     siteName: site.name,
                     score: score,
                     avgTemp: Math.round(weatherStatus.avgTemp),
-                    condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy'
+                    avgClouds: Math.round(weatherStatus.avgClouds),
+                    condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy',
+                    bortle: site.bortle || 'N/A',
+                    mapUrl: googleMapsUrl || '#'
                 });
             }
             return siteWeeklyResults;
@@ -266,9 +273,23 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
         card.className =   `weekly-card ${isChamp ? 'champion-highlight' : ''}`;
 
         card.innerHTML = `
-            <h3 class="date">${item.date} ${isChamp ? '(Weekly Best)' : ''}</h3>
-            <h2 class="site-name">${item.siteName} (${item.score}% Match)</h2>
-            <p class="temp">${item.avgTemp} °${unit}</p>
+            <h3 class="date">${isChamp ? `${item.date}` : ''}</h3>
+            <h2 class="site-name">${item.siteName} <span>(${item.score}% Match)</span></h2>
+            <div class="weekly_stats">
+                <p class="weekly_stats_temp">${item.avgTemp} °${unit}</p>
+                <div class="weekly_stats_bortle">
+                    <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
+                    <p><strong>Bortle:</strong> ${item.bortle}</p>
+                </div>
+                <div class="weekly_stats_cloud">
+                    <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_cloudy.svg"></image></svg>
+                    <p><strong>${item.avgClouds}%</strong> clouds</p>
+                </div>
+                <div class="weekly_stats_direction">
+                    <a href="${item.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
+                    <p class="weekly_stats_directions"><a href="${item.mapUrl}" target="_blank"><strong>Directions</strong></a></p>
+                </div>
+            </div>
         `;
         grid.appendChild(card);
     });

@@ -23,6 +23,7 @@ footer p {
   color: #ffffff;
 }
 
+/*Classes*/
 .ai-status {
   margin-bottom: 10px;
   padding: 10px;
@@ -47,12 +48,72 @@ footer p {
   align-self: center;
 }
 
+.featured-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(7, 1fr);
+  color: #ffffff;
+}
+.featured-container h3 {
+  grid-column: 1/3;
+  grid-row: 1/2;
+  margin: 0px;
+}
+.featured-container p {
+  margin: 0px;
+}
+.featured-container div {
+  display: grid;
+  grid-template-columns: 20px auto;
+  grid-template-rows: 1fr;
+}
+.featured-container .top_Temp {
+  grid-column: 1/2;
+  grid-row: 2/5;
+  font-size: 70px;
+  font-weight: 600;
+}
+.featured-container .top_Bortle {
+  grid-column: 2/3;
+  grid-row: 2/3;
+}
+.featured-container .top_Duration {
+  grid-column: 2/3;
+  grid-row: 3/4;
+}
+.featured-container .top_Clouds {
+  grid-column: 2/3;
+  grid-row: 4/5;
+}
+.featured-container .top_Viewing {
+  grid-column: 1/2;
+  grid-row: 6/7;
+}
+.featured-container .top_Drive {
+  grid-column: 2/3;
+  grid-row: 6/7;
+}
+.featured-container .top_Leave {
+  grid-column: 1/2;
+  grid-row: 7/8;
+}
+.featured-container .top_Directions {
+  grid-column: 2/3;
+  grid-row: 7/8;
+}
+.featured-container .top_Directions a {
+  text-decoration: none;
+}
+.featured-container .top_Directions a:visited {
+  color: #ffffff;
+}
+
 .hero {
   background-image: linear-gradient(#008571, #00464D);
   background-color: #00464D;
   padding: 15px;
   margin: 10px;
-  border-radius: 25px;
+  border-radius: 40px;
   width: 100%;
   max-width: 345px;
   height: 100%;
@@ -60,6 +121,14 @@ footer p {
 }
 .hero h2 {
   color: #ffffff;
+}
+.hero h2#hero_decision {
+  font-style: italic;
+  font-weight: 400;
+}
+.hero h2#section_title {
+  font-style: italic;
+  font-weight: 400;
 }
 .hero button {
   background-color: transparent;
@@ -135,10 +204,128 @@ footer p {
   flex-shrink: 0;
 }
 
+.site-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(4, 1fr) 15px repeat(2, 1fr);
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+.site-card div {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: 1fr;
+}
+.site-card div p {
+  margin-top: 0px;
+  margin-bottom: 0px;
+  max-height: 25px;
+}
+.site-card h3 {
+  grid-column: 1/3;
+  grid-row: 1/2;
+  margin: 0px;
+}
+.site-card .card_temp {
+  grid-column: 1/2;
+  grid-row: 2/5;
+  font-size: 70px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  justify-content: center;
+}
+.site-card .card_bortle {
+  grid-column: 2/3;
+  grid-row: 2/3;
+}
+.site-card .card_duration {
+  grid-column: 2/3;
+  grid-row: 3/4;
+}
+.site-card .card_cloud {
+  grid-column: 2/3;
+  grid-row: 4/5;
+}
+.site-card .card_viewing {
+  grid-column: 1/2;
+  grid-row: 6/7;
+}
+.site-card .card_drive {
+  grid-column: 2/3;
+  grid-row: 6/7;
+}
+.site-card .card_leave {
+  grid-column: 1/2;
+  grid-row: 7/8;
+}
+.site-card .card_directions {
+  grid-column: 2/3;
+  grid-row: 7/8;
+}
+.site-card .card_directions a {
+  color: #ffffff;
+  text-decoration: none;
+}
+.site-card .card_directions a:visited {
+  color: #ffffff;
+}
+
 .spinner {
   animation: spin 1s linear infinite;
 }
 
+.weekly-card .site-name {
+  font-weight: 400;
+}
+.weekly_stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 1fr);
+  margin-left: auto;
+  margin-right: auto;
+}
+.weekly_stats div {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: 1fr;
+}
+.weekly_stats div p {
+  margin-left: 5px;
+}
+.weekly_stats p {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+.weekly_stats_temp {
+  grid-column: 1/2;
+  grid-row: 1/4;
+  font-size: 60px;
+  font-weight: 300;
+}
+.weekly_stats_bortle {
+  grid-column: 2/3;
+  grid-row: 1/2;
+}
+.weekly_stats_cloud {
+  grid-column: 2/3;
+  grid-row: 2/3;
+}
+.weekly_stats_direction {
+  grid-column: 2/3;
+  grid-row: 3/4;
+}
+.weekly_stats_direction a {
+  color: #ffffff;
+  text-decoration: none;
+}
+.weekly_stats_direction a:hover {
+  color: #ffffff;
+}
+.weekly_stats_direction a:visited {
+  color: #ffffff;
+}
+
+/*ID's*/
 #hero_details {
   display: flex;
   align-self: center;
@@ -158,13 +345,32 @@ footer p {
   margin-bottom: 10px;
 }
 
+#results-container {
+  height: 100%;
+  max-height: 390px;
+  width: 100%;
+  max-width: 325px;
+  padding: 10px;
+  border-radius: 25px;
+  color: #ffffff;
+  background-color: #3C0085;
+  background-image: linear-gradient(#3C0085, #000066);
+  overflow: scroll;
+  overflow-x: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+#results-container::-webkit-scrollbar {
+  display: none;
+}
+
 #weekly_outlook {
   height: 100%;
   max-height: 390px;
   width: 100%;
   max-width: 325px;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: 25px;
   color: #ffffff;
   background-color: #3C0085;
   background-image: linear-gradient(#3C0085, #000066);

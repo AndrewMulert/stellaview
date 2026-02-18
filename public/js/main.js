@@ -87,6 +87,10 @@ async function initAI() {
 async function runStargazingEngine() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
+    const container = document.getElementById('results-container');
+
+    container.classList.add("hidden");
+    container.innerHTML = "";
 
     console.log("Step 1: Engine function called");
 
@@ -130,6 +134,7 @@ function displayResults(sites, prefs) {
     const container = document.querySelector("#results-container");
     if (!container) return;
 
+    container.classList.add("hidden");
     container.innerHTML = "";
 
     sites.forEach(site => {
@@ -159,17 +164,38 @@ function displayResults(sites, prefs) {
         const card = document.createElement("div");
         card.className = "site-card";
         card.innerHTML = `
-            <h3>${site.name} (Score: ${site.score})</h3>
-            <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p>
-            <p><strong>Viewing Starts:</strong> ${viewingStr}</p>
-            <p><strong>Window:</strong> ${site.duration || '0'} hours of clear sky</p>
-            <p><strong>Conditions: </strong> ${tempDisplay} °F / ${cloudVal}% clouds</p>
-            <p><strong>Drive Time:</strong> ~${driveTime} mins</p>
-            <p class="leave-time">Leave by: ${leaveStr}</p>
-            <div>
-            <a href="${site.mapUrl}" target="_blank">Directions</a>
+            <h3>${site.name} <span>(${site.score}% Match)</span></h3>
+            <p class="card_temp"><strong>${tempDisplay} °F</strong></p>
+            <div class="card_bortle">
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
+                <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p>
+            </div>
+            <div class="card_duration">
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_duration.svg"></image></svg>
+                <p><strong>Window:</strong> ${site.duration || '0'} hours</p>
+            </div>
+            <div class="card_cloud">
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_cloudy.svg"></image></svg>
+                <p><strong>${cloudVal}%</strong> clouds</p>
+            </div>
+            <div class="card_viewing">
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_view.svg"></image></svg>
+                <p><strong>Viewing:</strong> ${viewingStr}</p>
+            </div>
+            <div class="card_drive">
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_drive.svg"></image></svg>
+                <p><strong>Travel:</strong> ~${driveTime} mins</p>
+            </div>
+            <div class="card_leave"> 
+                <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_time.svg"></image></svg>
+                <p class="leave-time">Leave by: ${leaveStr}</p>
+            </div>
+            <div class="card_directions">
+                <a href="${site.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
+                <a href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
             </div>
         `;
+        container.classList.remove("hidden");
         container.appendChild(card);
     });
     
@@ -191,7 +217,7 @@ async function handleSearch() {
     currentSearchId++;
     const thisSearchId = currentSearchId;
 
-    if (activeAbortController) activeAbourtController.abort();
+    if (activeAbortController) activeAbortController.abort();
     activeAbortController = new AbortController();
     
     const decisionSpan = document.querySelector("#hero_decision");
@@ -199,9 +225,15 @@ async function handleSearch() {
     const statusText = document.getElementById('ai-status-text');
     const spinner = loader.querySelector(".spinner");
     const weeklyContainer = document.querySelector("#weekly_outlook");
+    const container = document.querySelector("#results-container");
 
     if (decisionSpan) {
         decisionSpan.textContent = "The universe is calling; let’s find where it’s clearest.";
+    }
+
+    if (container) {
+        container.classList.add('hidden');
+        container.innerHTML = "";
     }
 
     if (weeklyContainer) {
@@ -293,7 +325,10 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     const container = document.querySelector("#results-container");
     const featuredContainer = document.querySelector("#feature-container");
-    if (container) container.innerHTML = "";
+    if (container){
+        container.innerHTML = "";
+        container.classList.add('hidden');
+    }
     if (featuredContainer) container.innerHTML = "";
 
     if (sites.length > 0) {
@@ -379,17 +414,41 @@ function renderFeaturedSite(site, container) {
     const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
     const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
     const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
+    const regTemp = Math.round(site.avgTemp);
 
     container.innerHTML = `
-    <div class="featured-card">
-    <h3>${site.name} <span class="top_Score">(${site.score}% Match)</span></h3>
-    <p class=top_Temp>${site.avgTemp}°F</p>
-    <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p>
-    <p><strong>Viewing Starts:</strong> ${viewingStr}</p>
-    <p><strong>Window:</strong> ${site.duration || '0'} hours of clear sky</p>
-    <p><strong>${cloudVal}% clouds</p>
-    <p><strong>Drive Time:</strong> ~${driveTime} mins</p>
-    <p class="leave-time">Leave by: ${leaveStr}</p>
+    <div class="featured-container">
+        <h3>${site.name} <span class="top_Score">(${site.score}% Match)</span></h3>
+        <p class="top_Temp">${regTemp} °F</p>
+        <div class="top_Bortle featured-element">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
+            <p><strong>Bortle:</strong> ${site.bortle || 'N/A'} </p> 
+        </div>
+        <div class="top_Duration">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_duration.svg"></image></svg>
+            <p><strong>Window:</strong> ${site.duration || '0'} hours</p>
+        </div>
+        <div class="top_Clouds">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_cloudy.svg"></image></svg>
+            <p><strong>${cloudVal}%</strong> clouds</p>
+        </div>
+        <div class="top_Viewing">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_view.svg"></image></svg>
+            <p><strong>Viewing:</strong> ${viewingStr}</p>
+        </div>
+        <div class="top_Drive">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_drive.svg"></image></svg>
+            <p><strong>Travel:</strong> ~${driveTime} mins</p>
+        </div>
+        <div class="top_Leave">
+            <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_time.svg"></image></svg>
+            <p><strong>Leave by:</strong> ${leaveStr}</p>
+        </div>
+        <div class="top_Directions">
+            <a href="${site.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
+            <a href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
+        </div>
+    </div
     `
 }
 
