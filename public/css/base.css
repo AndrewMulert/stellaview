@@ -170,11 +170,16 @@ footer p {
 }
 .site-card .card_score {
   font-weight: 400;
+  font-size: 14px;
+  padding: 2px;
+  border-radius: 12px;
+  background-color: #59FFE5;
+  color: #000000;
 }
 .site-card .card_temp {
   grid-column: 1/2;
   grid-row: 2/5;
-  font-size: 70px;
+  font-size: 68px;
   margin-top: 0px;
   margin-bottom: 0px;
   justify-content: center;
@@ -254,6 +259,11 @@ footer p {
 }
 .weekly-card .card_score {
   font-weight: 400;
+  font-size: 14px;
+  padding: 2px;
+  border-radius: 12px;
+  background-color: #FFDB59;
+  color: #000000;
 }
 .weekly-card .card_temp {
   grid-column: 1/2;

@@ -69,7 +69,7 @@ const getNav = () => {
                 </div>
             </li>
             <li class="nav_link_container" id="nav_profile">
-                <a href="/" class="nav_links" id="profile_menu">
+                <a href="#" class="nav_links" id="profile_menu">
                     <svg id="profile_svg" width="30px" height="30px">
                         <image width="30px" height="30px" href="/images/icon_user.svg"></image>
                     </svg>

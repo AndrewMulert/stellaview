@@ -272,7 +272,7 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 
         card.innerHTML = `
             <h2 class="card_date">${isChamp ? `${item.date}` : ''}</h2>
-            <h3>${item.siteName} <span>(${item.score}% Match)</span></h3>
+            <h3>${item.siteName} <span class="card_score">(${item.score}% Match)</span></h3>
                 <p class="card_temp">${item.avgTemp} °${unit}</p>
                 <div class="card_bortle">
                     <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>

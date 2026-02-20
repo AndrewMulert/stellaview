@@ -10,6 +10,7 @@ $dark-tertiary: #000066;
 $medium-grey: #353535bf;
 $dark-grey: #151515bf;
 $white: #ffffff;
+$black: #000000;
 
 body{
     margin: 0px;
@@ -202,12 +203,17 @@ footer{
 
     .card_score{
         font-weight: 400;
+        font-size: 14px;
+        padding: 2px;
+        border-radius: 12px;
+        background-color: $base-secondary;
+        color: $black;
     }
 
     .card_temp{
         grid-column: 1 /2;
         grid-row: 2 /5;
-        font-size: 70px;
+        font-size: 68px;
         margin-top: 0px;
         margin-bottom: 0px;
         justify-content: center;
@@ -303,6 +309,12 @@ footer{
 
         .card_score{
             font-weight: 400;
+            font-size: 14px;
+            padding: 2px;
+            border-radius: 12px;
+            background-color: $base-primary;
+            color: $black;
+
         }
 
         .card_temp{

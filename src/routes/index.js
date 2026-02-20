@@ -15,9 +15,9 @@ router.get('/', async (req, res) => {
             title: 'StellaView', 
             description: 'An algorithm based site dedicated to helping you find the best days to view the sky'
         });
-    } catch {
+    } catch (err) {
         console.error('Error fetching about', err);
-        nextTick(err);
+        next(err);
     }
 });
 
