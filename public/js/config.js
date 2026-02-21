@@ -6,7 +6,7 @@ export const DEFAULT_PREFS = {
     maxBortle: 4,
     latestStayOut: "02:00",
     departureLeadTime: 30,
-    fallback_loc: { lat: 42.5621, lon: -114.4605 }
+    fallback_loc: { lat: 44.4605, lon: -110.8281, label: "Yellowstone National Park" }
 };
 
 /**

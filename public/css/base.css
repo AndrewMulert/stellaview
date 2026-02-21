@@ -79,6 +79,11 @@ footer p {
   display: none !important;
 }
 
+.modal_overlay {
+  background-image: linear-gradient(rgba(53, 53, 53, 0.7490196078), rgba(21, 21, 21, 0.7490196078));
+  background-color: rgba(53, 53, 53, 0.7490196078);
+}
+
 .nav_bar {
   margin: 0px 10px 0px 10px;
 }
@@ -262,7 +267,7 @@ footer p {
   font-size: 14px;
   padding: 2px;
   border-radius: 12px;
-  background-color: #FFDB59;
+  background-color: #59FFE5;
   color: #000000;
 }
 .weekly-card .card_temp {

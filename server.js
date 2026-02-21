@@ -4,7 +4,7 @@ import connectDB from './src/config/db.js';
 import configNodeEnv from './src/middleware/node-env.js';
 import express from 'express';
 import homeRoute from './src/routes/index.js';
-import userRoutes from '.src/routes/user/index.js';
+import userManagement from './src/routes/user/index.js';
 import layouts from './src/middleware/layouts.js';
 import path from 'path';
 import { configureStaticPaths } from './src/utils/index.js'
@@ -40,8 +40,8 @@ app.use(express.urlencoded({ extended: true }));
 async function startServer() {
     try {
         await connectDB();
+        app.use('/api/user', userManagement);
         app.use('/', homeRoute);
-        app.use('/api/users', userRoutes);
 
         app.use(notFoundHandler);
         app.use(globalErrorHandler);

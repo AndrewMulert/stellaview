@@ -32,6 +32,13 @@ const userSchema = new mongoose.Schema({
             type: Number,
             default: 1,
             required: true
+        },
+        isVerified: {
+            type: Boolean,
+            default: false
+        },
+        verificationToken: {
+            type: String
         }
     },
     preferences: {
@@ -63,15 +70,15 @@ const userSchema = new mongoose.Schema({
         homeLocation: {
             lat: {
                 type: Number,
-                required: true
+                default: null
             },
             lon: {
                 type: Number,
-                required: true
+                default: null
             },
             label: {
                 type: String,
-                required: true
+                default: null
             }
         }
     },
@@ -95,6 +102,18 @@ const userSchema = new mongoose.Schema({
     }]
 },
 {collection: 'user'});
+
+userSchema.pre('validate', function(next) {
+    const loc = this.preferences.homeLocation;
+    const hasAny = loc.lat !== null || loc.lon !== null || loc.label !== null;
+    const hasAll = loc.lat !== null && loc.lon !== null && loc.label !== null;
+
+    if(hasAny && !hasAll) {
+        next(new Error('homeLocation must be fully defined (lat, lon, and label) or not defined at all.'));
+    } else {
+        next();
+    }
+});
 
 const User = mongoose.model('User', userSchema);
 
