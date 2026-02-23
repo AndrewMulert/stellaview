@@ -12,7 +12,7 @@ import { predictWithBrain } from "./brain.js";
 * @param {Object} aqiStatus
 */
 
-function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null, radiance = 0, ndvi = 0) {
+function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus = null, radiance = 0, ndvi = 0, moonIsUpNow) {
     let currentTemp = weatherStatus.avgTemp;
     if (prefs.tempUnit === 'celsius') {
         currentTemp = calculateFahrenheit(currentTemp);
@@ -30,7 +30,7 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 
     const distancePenalty = (travelTime / prefs.maxDriveTime) * 5;
 
-    const moonPenalty = moonIllum * 3;
+    const moonPenalty = moonIsUpNow ? (Math.pow(moonIllum, 2) * 15) : 0;
 
     const natureBonus = ndvi * 2;
 
@@ -105,8 +105,19 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
 
         if (weatherStatus.success && aqiStatus.success) {
+            const moonPos = SunCalc.getMoonPosition(weatherStatus.bestTime, site.lat, site.lon);
+            const moonIsUpNow = moonPos.altitude > 0;
+
+            if (moonIllum > 0.7 && moonIsUpNow) {
+                console.log(` -> Filtered ${site.name}: Moon visible and too bright.`);
+                failureCounts.moon++;
+                return null;
+            }
+
             console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi);
+
+            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi, moonIsUpNow);
+
             return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance, ndvi: ndvi};
         } else {
             const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
@@ -167,12 +178,17 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
                 const moonIllum = SunCalc.getMoonIllumination(checkDate).fraction;
 
+                const moonPos = SunCalc.getMoonPosition(weatherStatus.bestTime, site.lat, site.lon);
+                const moonIsUpNow = moonPos.altitude > 0;
+
                 const prefetched = {
                     weather: weatherStatus,
                     aqi: currentAqiStatus,
                     radiance: radiance || 0,
                     ndvi: siteNDVI,
-                    travelTime: travelTime
+                    travelTime: travelTime,
+                    moonIsUp: moonIsUpNow,
+                    moonIllum: moonIllum
                 };
 
                 let score;
@@ -187,7 +203,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                         continue;
                     }
                 } else {
-                    score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, radiance, siteNDVI);
+                    score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, radiance, siteNDVI, moonIsUpNow);
                 }
 
                 const origin = `${userLoc.lat},${userLoc.lon}`;

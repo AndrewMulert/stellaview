@@ -9,19 +9,22 @@ export function generateMockHistory(numSamples = 1000) {
             pm25: Math.random() * 80,
             temp: Math.random() * 110 - 10,
             illumination: Math.random(),
+            isMoonUp: Math.random() > 0.5 ? 1 : 0,
             publicRating: Math.random() * 5,
             userRating: Math.random() * 5,
             travelTime: Math.random() * 120,
-            duration: Math.random() * 6,
-            startHour: 18 + (Math.random() * 12),
-            trustFactor: Math.random() < 0.3 ? 0.5 : 1.0
+            duration: Math.random() * 8,
+            startHour: 18 + (Math.random() * 10),
+            trustFactor: Math.random() < 0.3 ? 0.5 : 1.0,
         };
 
         const darknessFactor = Math.max(0, 1 - (Math.log10(scenario.radiance + 1) / 2.5));
         const normTravel = Math.max(0, 1 - (scenario.travelTime / 120));
         const normClouds = (100 - scenario.clouds) / 100;
         const normAQI = Math.max(0, (100 - scenario.pm25) / 100);
-        const normMoon = Math.pow(1 - scenario.illumination, 2);
+        const normMoon = scenario.isMoonUp === 1 ? Math.pow(1 - scenario.illumination, 2) : 1.0;
+        const normDuration = scenario.duration / 8;
+        const normStartHour = 1 - ((scenario.startHour - 18) / 10);
         const normTemp = Math.max(0, 1 - (Math.abs(scenario.temp - 68) / 40));
         
         let normNDVI = 0.8; 
@@ -32,22 +35,22 @@ export function generateMockHistory(numSamples = 1000) {
         const inputVector = [
             darknessFactor, normNDVI, normClouds, normAQI, normMoon, 
             normTemp, scenario.trustFactor, scenario.publicRating / 5, scenario.userRating / 5, 
-            normTravel, scenario.duration / 6, 1 - ((scenario.startHour - 18) / 12)
+            normTravel, normDuration, normStartHour, scenario.isMoonUp
         ];
 
-        let score = (darknessFactor * 20)
-            + (scenario.trustFactor * 40)
-            + (normNDVI * 15)
+        let score = (darknessFactor * 30)
             + (normClouds * 15) 
             + (normMoon * 10)
+            + (normDuration * 10)
+            + (normStartHour * 10)
+            + (normNDVI * 15)
             + (normTravel * 10)
+            + (scenario.trustFactor * 15)
             + (normAQI * 5);
 
-        if (scenario.trustFactor < 0.6 ) {
-            score = score * 0.4;
-        }
+        if (scenario.trustFactor < 0.6 ) score *= 0.4;
 
-        const normalizedOutput = Math.max(0, Math.min(1, score / 60)); 
+        const normalizedOutput = Math.max(0, Math.min(1, score / 100)); 
 
         trainingData.push({ input: inputVector, output: [normalizedOutput] });
     }

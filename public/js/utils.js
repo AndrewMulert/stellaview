@@ -33,7 +33,7 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
     return score;
 }
 
-export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5) {
+export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow) {
     if (travelTime > prefs.maxDriveTime) return null;
     
     const logRad = Math.log10(radiance + 1);
@@ -47,11 +47,6 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const cloudVal = weather.avgClouds ?? weather.clouds ?? 100; 
     const normClouds = Math.max(0, (100 - cloudVal) / 100);
 
-    const normStart = Math.max(0, 1 -(startOffset / 12));
-
-    const duration = weather.duration || 0;
-    const normDuration = duration <= 1 ? 0 : Math.min((duration -1) / 5, 1);
-
     const pm25Raw = aqiStatus?.pm25;
     const safePm25 = (typeof pm25Raw !== 'number' || isNaN(pm25Raw)) ? 10 : pm25Raw;
     const normAQI = Math.max(0, (100 - safePm25) / 100);
@@ -60,9 +55,12 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normMoon = Math.pow(1 - mIllum, 2);
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
-    
     const monthlyAvg = weather.monthlyAvg || 40;
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, monthlyAvg);
+
+    const normStart = Math.max(0, 1 -(startOffset / 12));
+    const duration = weather.duration || 0;
+    const normDuration = duration <= 1 ? 0 : Math.min((duration -1) / 5, 1);
 
     const normTrust = trustFactor;
 
@@ -71,7 +69,7 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
 
     const normTravel = Math.max(0, 1 - (travelTime / 120));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust, normPublic, normUser, normTravel, normDuration, normStart];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {

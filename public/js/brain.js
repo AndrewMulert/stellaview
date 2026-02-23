@@ -1,3 +1,4 @@
+import SunCalc from 'https://esm.sh/suncalc@1.9.0';
 import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js';
 import { checkWeatherWindow, checkAirQuality } from './engine.js';
 import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes, getNDVI} from './utils.js';
@@ -12,7 +13,7 @@ export async function trainStellaBrain() {
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 16, inputShape: [12], activation: 'relu'}));
+    model.add(tf.layers.dense({ units: 16, inputShape: [13], activation: 'relu'}));
     model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
@@ -55,7 +56,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
 
 
+
     let lightTiles = null, vegTiles = null, roadTimes = null;
+    let moonIsUpNow;
 
     if (!preFetchedData) {
         const [lightRes, vegRes] = await Promise.all([
@@ -78,12 +81,14 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             radiance = preFetchedData.radiance || 0;
             siteNDVI = preFetchedData.ndvi || 0.1;
             travelTime = preFetchedData.travelTime;
+            moonIsUpNow = preFetchedData.moonIsUp !== undefined ? preFetchedData.moonIsUp : 0;
         } else {
-            const startOfNight = new Date();
-            startOfNight.setHours(20, 30, 0, 0);
-            const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
-
             weather = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
+
+            startOfNight.setHours(20, 30, 0, 0);
+            const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
+            moonIsUpNow = moonPos.altitude > 0 ? 1 : 0;
+
             aqi = await checkAirQuality(site);
             radiance = await getRadianceValue(site.lat, site.lon, lightTiles);
             console.log(`📡 NASA Radiance for ${site.name}: ${radiance}`);
@@ -118,7 +123,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
             const trustFactor = site.trustFactor || 0.5;
 
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor);
+            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor, moonIsUpNow);
 
             if (inputData.some(val => isNaN(val))) {
                 console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);

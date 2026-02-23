@@ -46,7 +46,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.6-site_validation";
+        const MODEL_VERSION = "2.1.6-moon_improvements";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
