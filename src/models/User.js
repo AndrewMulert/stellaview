@@ -39,6 +39,16 @@ const userSchema = new mongoose.Schema({
         },
         verificationToken: {
             type: String
+        },
+        googleId: {
+            type: String, 
+            unique: true,
+            sparse: true
+        },
+        githubId: { 
+            type: String,
+            unique: true,
+            sparse: true
         }
     },
     preferences: {

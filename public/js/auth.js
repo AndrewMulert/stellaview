@@ -1,17 +1,30 @@
 async function handleRegister(event) {
     event.preventDefault();
+
+    const fName = document.getElementById('first_name')?.value;
+    const lName = document.getElementById('last_name')?.value;
+    const email = document.getElementById('email_input')?.value;
+    const pass = document.getElementById('password_input')?.value;
     
     const userData = {
-        firstName: document.getElementById('first_name').value,
-        lastName: document.getElementById('last_name').value,
-        email: document.getElementById('email_input').value,
-        password: document.getElementById('password_input').value,
-        homeLocation: {
-            lat: window.currentLat || 44.4605,
-            lon: window.currentLon || -110.8281,
-            label: "Twin Falls, ID"
+        id: crypto.randomUUID(),
+
+        accountInfo: {
+            firstName: fName,
+            lastName: lName,
+            email: email,
+            password: pass,
+        },
+        preferences: {
+            homeLocation: {
+                lat: window.currentLat || 44.4605,
+                lon: window.currentLon || -110.8281,
+                label: "Yellowstone National Park, Wyoming"
+            }
         }
     };
+
+    console.log("Sending to server:", userData);
 
     const response = await fetch('/api/user/register', {
         method: 'POST',
@@ -21,6 +34,9 @@ async function handleRegister(event) {
 
     if (response.ok) {
         alert("Account Created!");
+    } else {
+        const errData = await response.json();
+        console.error("Server yelled at us:", errData);
     }
 }
 

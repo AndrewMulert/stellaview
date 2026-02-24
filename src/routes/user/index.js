@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import passport from 'passport';
 
 import { Router } from 'express';
 import User from '../../models/User.js'; 
@@ -7,7 +8,9 @@ const router = Router();
 
 router.post('/register', async (req, res) => {
     try{
-        const { firstName, lastName, email, password } = req.body;
+        const { accountInfo, preferences } = req.body;
+
+        const { firstName, lastName, email, password } = accountInfo || {};
 
         if (!email || !password) return res.status(400).json({ message: "Missing fields" });
 
@@ -17,7 +20,7 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const verification = crypto.randomBytes(32).toString('hex');
+        const verificationToken = crypto.randomBytes(32).toString('hex');
 
         const newUser = new User({
             id: crypto.randomUUID(),
@@ -26,26 +29,33 @@ router.post('/register', async (req, res) => {
                 lastName,
                 email,
                 password: hashedPassword,
-                accessLevel: email === 'andrewmulert@gmail.com' ? 10 : 1
+                accessLevel: 1,
+                isVerified: false,
+                verificationToken: verificationToken
             },
-            preferences: { 
+            preferences: preferences || { 
                 homeLocation: { lat: null, lon: null, label: null }
             }
         });
 
         await newUser.save();
 
-        console.log(`Verification Link: /api/user/verify/${verificationToken}`);
-        res.status(201).json({ message: "User registered!" });
+        console.log(`User created. Verification Token: ${verificationToken}`);
+
+        res.status(201).json({ message: "User registered! Waiting for manual verification." });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: "Server error during registration" });
     }
     
 });
 
-router.post('/login', async (req, res) => { 
-    /* ... logic ... */ 
+router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+router.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login'}), (req, res) => res.redirect('/dashboard'));
+
+router.post('/login', passport.authenticate('local'), (req, res) => { 
+    res.json({ message: "Welcome back!", user: req.user}) ;
 });
 
 export default router;

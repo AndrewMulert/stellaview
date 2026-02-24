@@ -3,12 +3,27 @@
         <span id="close_modal" class="close_btn"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_close.svg"></image></svg></span>
         <h2>Join StellaView</h2>
         <form id="register_form">
-            <input type="text" id="first_name" placeholder="First Name" required>
-            <input type="text" id="last_name" placeholder="Last Name" required>
+            <div id="name_fields">
+                <input type="text" id="first_name" placeholder="First Name" required>
+                <input type="text" id="last_name" placeholder="Last Name" required>
+            </div>
             <input type="email" id="email_input" placeholder="Email" required>
             <input type="password" id="password_input" placeholder="Password" required>
             <button type="submit" class="cta_btn">Create Account</button>
         </form>
+
+        <div class="auth_divider">
+            <span>OR</span>
+        </div>
+
+        <a href="/api/user/auth/google" class="google_btn">
+            <svg id="google_svg" width="20px" height="20px"><image alt="Google Logo" width="20px" height="20px" href="/images/login_google.svg"></image></svg>
+            Sign in with Google
+        </a>
+
+        <p class="auth_toggle_text"> 
+            Already have an account? <a href="#" id="toggle_auth_mode">Log In</a>
+        </p>
     </div>
 </div>
 <div class="home-panel">

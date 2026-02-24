@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './src/config/passport.js';
 import connectDB from './src/config/db.js';
 
 import configNodeEnv from './src/middleware/node-env.js';
@@ -6,7 +7,9 @@ import express from 'express';
 import homeRoute from './src/routes/index.js';
 import userManagement from './src/routes/user/index.js';
 import layouts from './src/middleware/layouts.js';
+import passport from 'passport';
 import path from 'path';
+import session from 'express-session';
 import { configureStaticPaths } from './src/utils/index.js'
 import { notFoundHandler, globalErrorHandler } from './src/middleware/error-handler.js';
 import { fileURLToPath } from 'url';
@@ -36,6 +39,19 @@ app.use(layouts);
 app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'stella-nebula-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 async function startServer() {
     try {
