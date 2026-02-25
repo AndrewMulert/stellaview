@@ -14,19 +14,17 @@ export const DEFAULT_PREFS = {
  */
 
 export async function getActivePrefs(loggedInUser = null) {
-    if (loggedInUser && loggedInUser.id) {
-        try {
-            const response = await fetch(``);
-            return await response.json();
-        } catch (e) {
-            console.warn("Could not fetch Mongo prefs, falling back...");
-        }
+    if (loggedInUser && loggedInUser.preferences) {
+        console.log("Using Database Preferences");
+        return { ...DEFAULT_PREFS, ...loggedInUser.preferences };
     }
 
     const saved = localStorage.getItem('stellaview_prefs');
     if (saved) {
+        console.log("Using LocalStorage Preferences");
         return JSON.parse(saved);
     }
 
+    console.log("Using Default System Preferences");
     return DEFAULT_PREFS;
 }

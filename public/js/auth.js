@@ -40,27 +40,74 @@ async function handleRegister(event) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function updateModalView(user) {
+    const loggedOutView = document.getElementById('logged_out_view');
+    const loggedInView = document.getElementById('logged_in_view');
+    const welcomeUser = document.getElementById('welcome_user');
     const profileBtn = document.getElementById('profile_menu');
-    profileBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        // Logic to show your popup/modal
-        console.log("Show registration popup");
-    });
-});
 
-document.addEventListener('DOMContentLoaded', () => {
+    if (user) {
+        if (loggedOutView) loggedOutView.classList.add('hidden');
+        if (loggedInView) loggedInView.classList.remove('hidden');
+        if (welcomeUser) welcomeUser.textContent = `Welcome, ${user.accountInfo.firstName}`;
+    } else {
+        if (loggedOutView) loggedOutView.classList.remove('hidden');
+        if (loggedInView) loggedInView.classList.add('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     const modal = document.getElementById('auth_modal');
     const profileBtn = document.getElementById('profile_menu');
     const closeBtn = document.getElementById('close_modal');
     const form = document.getElementById('register_form');
+    const toggleBtn = document.getElementById('toggle_auth_mode');
 
-    profileBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        modal.classList.remove('hidden');
-    });
+    try {
+        const response = await fetch('/api/user/me');
+        if (response.ok) {
+            const user = await response.json();
+            updateModalView(user);
+        } else {
+            updateModalView(null);
+        }
+    } catch (err) {
+        updateModalView(null);
+    }
 
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    if (profileBtn && modal) {
+        profileBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.remove('hidden');
+        });
+    }
 
-    form.addEventListener('submit', handleRegister);
-})
+    if (closeBtn && modal) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', handleRegister);
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            window.location.href = '/api/user/logout';
+        });
+    }
+});
+
+async function updateUIForLoggedInUser() {
+    const response = await fetch('/api/user/me');
+    if (response.ok) {
+        const user = await response.json();
+
+        const profileBtn = document.getElementById('profile_menu');
+        if (profileBtn) {
+            profileBtn.TextContext = user.accountInfo.firstName;
+            profileBtn.classList.add('logged-in');
+        }
+    }
+}

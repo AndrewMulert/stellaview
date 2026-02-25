@@ -52,10 +52,27 @@ router.post('/register', async (req, res) => {
 
 router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-router.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login'}), (req, res) => res.redirect('/dashboard'));
+router.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/'}), (req, res) => res.redirect('/'));
 
 router.post('/login', passport.authenticate('local'), (req, res) => { 
     res.json({ message: "Welcome back!", user: req.user}) ;
+});
+
+router.get('/me', (req, res) => {
+    if (req.isAuthenticated()) {
+        const userData = req.user.toObject();
+        delete userData.accountInfo.password;
+        res.json(userData);
+    } else {
+        res.status(401).json({ message: "Not logged in"});
+    }
+});
+
+router.get('/logout', (req, res, next) => {
+    req.logout((err) => {
+        if (err) return next(err);
+        res.redirect('/');
+    });
 });
 
 export default router;

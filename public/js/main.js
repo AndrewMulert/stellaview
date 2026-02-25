@@ -39,6 +39,7 @@ setInterval(timeUpdater, 1000);
 let trainedModel = null;
 let currentSearchId = 0;
 let activeAbortController = null;
+let currentUser = null;
 
 async function initAI() {
     const loader = document.getElementById('ai-loader');
@@ -84,6 +85,21 @@ async function initAI() {
     }
 }
 
+async function initializeUserSession() {
+    try {
+        const response = await fetch('/api/user/me');
+        if (response.ok) {
+            const user = await response.json();
+            console.log("Welcome back, " + user.accountInfo.firstName);
+            currentUser = user;
+            return user;
+        }
+    } catch (err) {
+        console.log("Guest mode active.");
+    } 
+    return null;
+}
+
 async function runStargazingEngine() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
@@ -94,8 +110,7 @@ async function runStargazingEngine() {
 
     console.log("Step 1: Engine function called");
 
-    const user = null;
-    const prefs = await getActivePrefs(user);
+    const prefs = await getActivePrefs(currentUser);
     console.log("Step 2: Prefs loaded:", prefs);
     const date = new Date();
 
@@ -188,11 +203,11 @@ function displayResults(sites, prefs) {
             </div>
             <div class="card_leave"> 
                 <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_time.svg"></image></svg>
-                <p class="leave-time">Leave by: ${leaveStr}</p>
+                <p class="leave-time"><strong>Leave by: </strong>${leaveStr}</p>
             </div>
             <div class="card_directions">
                 <a href="${site.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
-                <a class="card_link" href="${site.mapUrl}" target="_blank"><strong">Directions</strong></a>
+                <a class="card_link" href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
             </div>
         `;
         container.classList.remove("hidden");
@@ -272,7 +287,7 @@ async function handleSearch() {
             console.log("Found location:", data[0].display_name);
             statusText.innerText = "📌 Location found...";
 
-            const prefs = await getActivePrefs();
+            const prefs = await getActivePrefs(currentUser);
             await updateUI(newCoords, prefs);
 
         } else {
@@ -467,6 +482,8 @@ document.addEventListener('keypress', (e) => {
 });
 
 async function startApp() {
+    console.log("🚀 Initializing StellaView...");
+    await initializeUserSession();
     await initAI();
     await runStargazingEngine();
 }

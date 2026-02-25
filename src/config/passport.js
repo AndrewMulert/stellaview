@@ -30,8 +30,10 @@ passport.use(new GoogleStrategy({
         });
 
         if (user) {
-            user.accountInfo.googleId = profile.id;
-            await user.save();
+            if (!user.accountInfo.googleId) {
+                user.accountInfo.googleId = profile.id;
+                await user.save();
+            }
             return done(null, user);
         }
 
@@ -46,9 +48,9 @@ passport.use(new GoogleStrategy({
             }
         });
         await newUser.save();
-        done(null, newUser);
+        return done(null, newUser);
     } catch (err) {
-        done(err);
+        return done(err);
     }
 }));
 
