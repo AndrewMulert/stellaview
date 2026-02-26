@@ -38,7 +38,53 @@
     </div>
 </div>
 <div id="settings_modal" class="modal_overlay hidden">
-    
+    <div class="modal_content settings_large">
+        <span id="close_settings" class="close_btn">
+            <svg width="20px" height="20px"><image href="/images/icon_close.svg"></image></svg>
+        </span>
+
+        <h2>Stargazing Preferences</h2>
+        <p>Personalize your stargazing site recommendations.</p>
+
+        <form id="settings_form">
+            <div class="setting_group">
+                <label for="pref_max_drive">Max Drive: <span id="val_max_drive">60</span> mins</label>
+                <input type="range" min="15" max="300" value="60" class="slider" id="pref_max_drive">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_max_bortle">Max Bortle Class: <span id="val_max_bortle">3</span></label>
+                <input type="range" min="1" max="5" value="3" class="slider" id="pref_max_bortle">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_min_temp">Minimum Temperature: <span id="val_min_temp">20</span> °F</label>
+                <input type="range" min="0" max="60" value="20" class="slider" id="pref_min_temp">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_max_temp">Maximum Temperature: <span id="val_max_temp">80</span> °F</label>
+                <input type="range" min="60" max="120" value="80" class="slider" id="pref_max_temp">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_latest_stay">Stay Out Until: <span id="val_latest_stay">2:00 AM</span></label>
+                <input type="time" min="1" max="12" value="2" class="slider" id="pref_latest_stay">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_lead_time">Prep Time <span id="val_lead_time">30</span> mins</label>
+                <input type="range" min="1" max="60" value="30" class="slider" id="pref_lead_time">
+            </div>
+
+            <div class="setting_group">
+                <label for="pref_fallback_loc">Home Location:</label>
+                <textarea id="pref_fallback_loc">(eg. Yosemite, California)</textarea>
+            </div>
+
+            <button type="submit" class="cta_btn">Save Preferences</button>
+        </form>
+    </div>
 </div>
 <div class="home-panel">
     
