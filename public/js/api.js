@@ -1,5 +1,25 @@
 const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 
+export async function geocode(query) {
+    if (!query) return null;
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'StellaView-App'} });
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+            return {
+                lat: parseFloat(data[0].lat),
+                lon: parseFloat(data[0].lon),
+                label: data[0].display_name
+            };
+        }
+    } catch (err) {
+        console.error("Geocoding failed:", err);
+    }
+    return null;
+}
+
 export async function getAirQuality(lat, lon, days = 7) {
     if (lat === undefined || lon === undefined) {
         console.error("❌ getAirQuality blocked: lat/lon is undefined");

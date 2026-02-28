@@ -34,8 +34,6 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
 }
 
 export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow) {
-    if (travelTime > prefs.maxDriveTime) return null;
-    
     const logRad = Math.log10(radiance + 1);
     const normRadiance = Math.max(0, 1 - (logRad / 2.5));
 
@@ -69,7 +67,7 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
 
     const normTravel = Math.max(0, 1 - (travelTime / 120));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow ];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
@@ -80,7 +78,7 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
     const lonTile = Math.floor(lon / STEP) * STEP;
     const tileId = `${latTile}_${lonTile}`;
 
-    if (!manifestTiles.includes(tileId)) {
+    if (!manifestTiles || !manifestTiles.includes(tileId)) {
         return 0.01;
     }
 

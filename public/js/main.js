@@ -47,7 +47,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.6-moon_improvements";
+        const MODEL_VERSION = "2.1.6.2-moon_brightness_failures";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
@@ -86,18 +86,27 @@ async function initAI() {
 }
 
 async function initializeUserSession() {
+    if (!document.cookie.includes('session')) {
+        console.log("Guest mode: No session detected.");
+        return null;
+    }
+
     try {
         const response = await fetch('/api/user/me');
+
+        if (response.status === 401) return null;
+
         if (response.ok) {
             const user = await response.json();
             console.log("Welcome back, " + user.accountInfo.firstName);
             currentUser = user;
             return user;
         }
+        return null;
     } catch (err) {
-        console.log("Guest mode active.");
+        console.log("Guest mode active (Fetch failed).");
+        return null;
     } 
-    return null;
 }
 
 async function runStargazingEngine() {
@@ -138,7 +147,7 @@ async function runStargazingEngine() {
         if (err.code === 2) errorType = "Position Unavailable";
         if (err.code === 3) errorType = "Timeout";
 
-        console.warn(`Location Error: ${errorType}. Using fallback from config.`);
+        console.info(`Location Error: ${errorType}. Using fallback from config.`);
         await updateUI(prefs.fallback_loc, prefs);
     },
     {timeout: 8000, enableHighAccuracy: false}
@@ -315,7 +324,10 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
     const date = new Date();
-    const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, prefs.maxDriveTime);
+
+    const driveMinutes = prefs.maxDriveTime || 60;
+    const searchRadiusKM = (driveMinutes / 60) * 45 * 1.60934;
+    const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, searchRadiusKM);
 
     if (sessionId !== null && sessionId !== currentSearchId) return;
 
@@ -467,7 +479,6 @@ function renderFeaturedSite(site, container) {
             <a href="${site.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
             <a class="card_link" href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
         </div>
-    </div
     `
 }
 

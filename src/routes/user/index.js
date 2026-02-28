@@ -75,4 +75,16 @@ router.get('/logout', (req, res, next) => {
     });
 });
 
+router.post('/update-prefs', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not logged in");
+     try {
+        const user = await User.findById(req.user._id);
+        user.preferences = { ...user.preferences, ...req.body.preferences };
+        await user.save();
+        res.json({ success: true, preferences: user.preferences });
+     } catch (err) {
+        res.status(500).json({ error: err.message });
+     }
+});
+
 export default router;

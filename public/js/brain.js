@@ -49,13 +49,40 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     let failureCounts = {clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     const validSites = [];
 
-    const date = new Date();
+    const lat = userLoc?.lat || 44.4605;
+    const lon = userLoc?.lon || -110.8281;
 
-    const startOfNight = new Date();
-    startOfNight.setHours(20, 30, 0, 0);
-    const windowEndTime = new Date(startOfNight.getTime() + 6 * 60 * 60 * 1000);
+    const sunTimes = SunCalc.getTimes(new Date(), lat, lon);
 
+    const defaultDusk = new Date();
+    defaultDusk.setHours(20, 0, 0, 0);
 
+    const defaultDawn = new Date();
+    defaultDawn.setDate(defaultDawn.getDate() + 1);
+    defaultDawn.setHours(5, 0, 0, 0);
+
+    const astroDusk = sunTimes.astronomicalDusk || defaultDusk;
+    const astroDawn = sunTimes.astronomicalDawn || defaultDawn;
+
+    let windowStart = new Date(Math.max(new Date(), astroDusk.getTime()));
+    let windowEnd = new Date(astroDawn.getTime());
+
+    if (prefs.latestStayOut) {
+        const [hours, minutes] = prefs.latestStayOut.split(':');
+        windowEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        if (parseInt(hours) < 12) {
+            windowEnd.setDate(windowEnd.getDate() + 1);
+        }
+
+        if (windowEnd > astroDawn) {
+            windowEnd = new Date(astroDawn.getTime() - (60 * 60 * 1000));
+        }
+    } else {
+        windowEnd = new Date(astroDawn.getTime() - (60 * 60 * 1000));
+    }
+
+    console.log(`🌌 Search Window: ${windowStart.toLocaleTimeString()} to ${windowEnd.toLocaleTimeString()}`);
 
     let lightTiles = null, vegTiles = null, roadTimes = null;
     let moonIsUpNow;
@@ -83,103 +110,108 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             travelTime = preFetchedData.travelTime;
             moonIsUpNow = preFetchedData.moonIsUp !== undefined ? preFetchedData.moonIsUp : 0;
         } else {
-            weather = await checkWeatherWindow(site, startOfNight, windowEndTime, prefs);
-
-            startOfNight.setHours(20, 30, 0, 0);
-            const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
-            moonIsUpNow = moonPos.altitude > 0 ? 1 : 0;
-
+            weather = await checkWeatherWindow(site, windowStart, windowEnd, prefs);
             aqi = await checkAirQuality(site);
             radiance = await getRadianceValue(site.lat, site.lon, lightTiles);
             console.log(`📡 NASA Radiance for ${site.name}: ${radiance}`);
             siteNDVI = await getNDVI(site.lat, site.lon, vegTiles);
             console.log(`🌿 NDVI lookup for ${site.name}: ${siteNDVI}`);
             travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes [i] : calculateDriveTime(userLoc, site);
+
+            const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
+            moonIsUpNow = moonPos.altitude > 0 ? 1 : 0;
         }
 
-        if (travelTime > prefs.maxDriveTime){
+        const maxDrive = (prefs.maxDriveTime || 120);
+        if (travelTime > maxDrive){
             console.log(`🧠 AI Skip: ${site.name} is too far (${Math.round(travelTime)}m).`);
             continue;
         }
 
         console.log(`Checking ${site.name}: Weather=${weather.success}, AQI=${aqi.success}`);
 
-        if (weather.success && aqi.success) {
+        const moonIllum = getMoonIllumination(weather.bestTime || new Date());
+        if (moonIllum > 0.15 && moonIsUpNow) {
+            console.log(`🧠 AI Skip: ${site.name} blocked by Moon (${Math.round(moonIllum * 100)}%).`);
+            failureCounts.moon++;
+            continue;
+        }
 
-            const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
-
-            const brainStats = {
-                clouds: weather.avgClouds,
-                temp: (prefs.tempUnit === 'celsius') ? (weather.avgTemp * 9/5) + 32 : weather.avgTemp, 
-                pm25: pm25Value
-            };
-
-            const aqiDataForBrain = { ...aqi, pm25: pm25Value };
-
-            const moonIllum = getMoonIllumination(startOfNight);
-
-            const now = new Date();
-            const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
-
-            const trustFactor = site.trustFactor || 0.5;
-
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor, moonIsUpNow);
-
-            if (inputData.some(val => isNaN(val))) {
-                console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);
-                continue;
-            }
-
-            const inputTensor = tf.tensor2d([inputData]);
-            const prediction = model.predict(inputTensor);
-            const scoreData = await prediction.data();
-            const score = isNaN(scoreData[0]) ? 0 : scoreData[0];
-
-            const origin = `${userLoc.lat},${userLoc.lon}`;
-            const destination = `${site.lat},${site.lon}`;
-
-
-            console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${score}`);
-
-            const boostedScore = (score * 100).toFixed(1);
-
-            console.group(`📊 Data Audit: ${site.name}`);
-            console.log("1. Sensor Raw:", {
-                radiance: radiance,
-                siteNDVI: siteNDVI,
-                clouds: brainStats.clouds,
-                temp: brainStats.temp,
-                moon: moonIllum,
-                travel: travelTime
-            });
-            console.log("2. AI Normalized (The 0-1 values):", inputData);
-            console.log("3. Final Result:", {
-                rawScore: score,
-                boosted: boostedScore
-            });
-            console.groupEnd();
-
-            validSites.push({
-                ...site,
-                radiance: radiance,
-                ndvi: siteNDVI,
-                bortle: radianceToBortle(radiance),
-                rawScore: score,
-                travelTime: travelTime,
-                bestTime: weather.bestTime,
-                duration: weather.duration,
-                avgTemp: weather.avgTemp,
-                avgClouds: weather.avgClouds,
-                score: 0,
-                mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
-            });
-
-            inputTensor.dispose();
-            prediction.dispose();
-        } else {
+        if (!weather.success || !aqi.success) {
             const reason = !weather.success ? weather.reason : 'aqi';
             failureCounts[reason]++;
+            continue;
         }
+
+        const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
+
+        const brainStats = {
+            clouds: weather.avgClouds,
+            temp: (prefs.tempUnit === 'celsius') ? (weather.avgTemp * 9/5) + 32 : weather.avgTemp, 
+            pm25: pm25Value
+        };
+
+        const aqiDataForBrain = { ...aqi, pm25: pm25Value };
+
+
+        const now = new Date();
+        const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
+
+        const trustFactor = site.trustFactor || 0.5;
+
+        const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor, moonIsUpNow);
+
+        if (inputData.some(val => isNaN(val))) {
+            console.error(`🚨 Input Data contains NaN for ${site.name}:`, inputData);
+            continue;
+        }
+
+        const inputTensor = tf.tensor2d([inputData]);
+        const prediction = model.predict(inputTensor);
+        const scoreData = await prediction.data();
+        const score = isNaN(scoreData[0]) ? 0 : scoreData[0];
+
+        const origin = `${userLoc.lat},${userLoc.lon}`;
+        const destination = `${site.lat},${site.lon}`;
+
+
+        console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${score}`);
+
+        const boostedScore = (score * 100).toFixed(1);
+
+        console.group(`📊 Data Audit: ${site.name}`);
+        console.log("1. Sensor Raw:", {
+            radiance: radiance,
+            siteNDVI: siteNDVI,
+            clouds: brainStats.clouds,
+            temp: brainStats.temp,
+            moon: moonIllum,
+            travel: travelTime
+        });
+        console.log("2. AI Normalized (The 0-1 values):", inputData);
+        console.log("3. Final Result:", {
+            rawScore: score,
+            boosted: boostedScore
+        });
+        console.groupEnd();
+
+        validSites.push({
+            ...site,
+            radiance: radiance,
+            ndvi: siteNDVI,
+            bortle: radianceToBortle(radiance),
+            rawScore: score,
+            travelTime: travelTime,
+            bestTime: weather.bestTime,
+            duration: weather.duration,
+            avgTemp: weather.avgTemp,
+            avgClouds: weather.avgClouds,
+            score: 0,
+            mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
+        });
+
+        inputTensor.dispose();
+        prediction.dispose();
     }
 
     if (validSites.length > 0) {
