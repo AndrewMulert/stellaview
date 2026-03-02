@@ -1,4 +1,5 @@
 import { DEFAULT_PREFS } from './config.js';
+import { geocode } from './api.js'
 
 async function handleRegister(event) {
     event.preventDefault();
@@ -47,6 +48,7 @@ function updateModalView(user) {
     const loggedOutView = document.getElementById('logged_out_view');
     const loggedInView = document.getElementById('logged_in_view');
     const welcomeUser = document.getElementById('welcome_user');
+    window.updateModalView = updateModalView;
 
     if (user) {
         if (loggedOutView) loggedOutView.classList.add('hidden');
@@ -71,18 +73,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let initialPrefs = {};
 
-    if (document.cookie.includes('session')) {
         try {
             const response = await fetch('/api/user/me');
-            window.currentUser - response.ok ? await response.json() : null;
-            updateModalView(window.currentUser);
+            if (response.ok) {
+                window.currentUser = await response.json();
+                console.log("✅ User logged in:", window.currentUser.accountInfo.firstName);
+                updateModalView(window.currentUser);
+
+                if (window.runStargazingEngine) {
+                    window.runStargazingEngine(window.currentUser.preferences);
+                }
+            } else {
+                console.log("👤 No session found. Running as Guest");
+                window.currentUser = null;
+                updateModalView(null);
+            }
         } catch (err) {
+            console.error("Auth check failed:", err);
+            window.currentUser = null;
             updateModalView(null);
         }
-    } else {
-        window.currentUser = null;
-        updateModalView(null);
-    }
 
     const sliderMappings = [
         { id: 'pref_max_drive', valId: 'val_max_drive' },
@@ -116,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!t.includes(':')) {
                     return `${t.padStart(2, '0')}:00`;
                 }
-                const [h, m] = t.spllit(':');
+                const [h, m] = t.split(':');
                 return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
             };
 
@@ -125,9 +135,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 maxBortle: currentActive.maxBortle,
                 minTemp: currentActive.minTemp,
                 maxTemp: currentActive.maxTemp,
-                latestStayOut: currentActive.latestStayOut,
+                latestStayOut: formateTimeForInput(currentActive.latestStayOut),
                 leadTime: currentActive.leadTime,
-                homeLocationLabel: currentActive.homeLocationLabel || ""
+                homeLocation: currentActive.homeLocation || ""
             };
 
             const uiMapping = {
@@ -163,6 +173,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     settingsForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        const addressString = document.getElementById('pref_fallback_loc').value.trim();
+        let homeLocation = window.currentUser.preferences.homeLocation;
+
+        if (addressString !== initialPrefs.homeLocationLabel) {
+            console.log("📍 Address changed, fetching new coordinates...");
+
+            const geoData = await geocode(addressString);
+
+            if (geoData) {
+                homeLocation = {
+                    lat: geoData.lat,
+                    lon: geoData.lon,
+                    label: geoData.label
+                };
+            } else {
+                alert("We couldn't find that location on the map. Please try a different address.");
+                return;
+            }
+        }
+
         const updatedPrefs = {
             maxDriveTime: parseInt(document.getElementById('pref_max_drive').value),
             maxBortle: parseInt(document.getElementById('pref_max_bortle').value),
@@ -170,25 +200,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             maxTemp: parseInt(document.getElementById('pref_max_temp').value),
             latestStayOut: document.getElementById('pref_latest_stay').value,
             leadTime: parseInt(document.getElementById('pref_lead_time').value),
-            homeLocationLabel: document.getElementById('pref_fallback_loc').value
+            homeLocation: homeLocation
         };
 
         if (JSON.stringify(updatedPrefs) === JSON.stringify(initialPrefs)) {
             console.log("No changes detected. Skipping update.");
             settingsModal.classList.add('hidden');
             return;
-        }
+        };
 
-        const response = await fetch('/api/user/update-prefs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ preferences: updatedPrefs })
-        });
+        try{
+            const response = await fetch('/api/user/update-prefs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preferences: updatedPrefs })
+            });
 
-        if (response.ok){ 
-            alert("Preferences Saved!");
-            settingsModal.classList.add('hidden');
-            location.reload();
+            if (response.ok){ 
+                alert("Preferences Saved!");
+                settingsModal.classList.add('hidden');
+                location.reload();
+            } else {
+                const err = await response.json();
+                console.error("Save failed:", err);
+            }
+        } catch (error) {
+            console.error("Network error saving preferences:", error);
         }
     });
 
@@ -228,7 +265,7 @@ async function updateUIForLoggedInUser() {
 
         const profileBtn = document.getElementById('profile_menu');
         if (profileBtn) {
-            profileBtn.textContext = user.accountInfo.firstName;
+            profileBtn.textContent = user.accountInfo.firstName;
             profileBtn.classList.add('logged-in');
         }
     }

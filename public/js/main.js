@@ -86,27 +86,24 @@ async function initAI() {
 }
 
 async function initializeUserSession() {
-    if (!document.cookie.includes('session')) {
-        console.log("Guest mode: No session detected.");
-        return null;
-    }
-
     try {
         const response = await fetch('/api/user/me');
 
-        if (response.status === 401) return null;
-
         if (response.ok) {
             const user = await response.json();
-            console.log("Welcome back, " + user.accountInfo.firstName);
-            currentUser = user;
-            return user;
+            console.log("✅ Welcome back, " + user.accountInfo.firstName);
+            window.currentUser = user;
+            updateModalView(user);
+            return;
         }
-        return null;
+
+        console.log("👤 No session found. Running as Guest.");
     } catch (err) {
-        console.log("Guest mode active (Fetch failed).");
-        return null;
+        console.warn("🌐 Connection issue checking session. Defaulting to Guest.");
     } 
+
+    window.currentUser = null;
+    updateModalView(null);
 }
 
 async function runStargazingEngine() {
@@ -114,14 +111,15 @@ async function runStargazingEngine() {
     const statusText = document.getElementById('ai-status-text');
     const container = document.getElementById('results-container');
 
-    container.classList.add("hidden");
-    container.innerHTML = "";
+    if (container) {
+        container.classList.add("hidden");
+        container.innerHTML = "";
+    }
 
     console.log("Step 1: Engine function called");
 
-    const prefs = await getActivePrefs(currentUser);
+    const prefs = await getActivePrefs(window.currentUser);
     console.log("Step 2: Prefs loaded:", prefs);
-    const date = new Date();
 
     console.log("Step 3: Requesting location...");
     statusText.innerText = "🌎 Grabbing Location...";
@@ -148,7 +146,19 @@ async function runStargazingEngine() {
         if (err.code === 3) errorType = "Timeout";
 
         console.info(`Location Error: ${errorType}. Using fallback from config.`);
-        await updateUI(prefs.fallback_loc, prefs);
+
+        let fallback = prefs.homeLocation;
+
+        if (!fallback || fallback.lat === null || fallback.lat === undefined) {
+            console.error("🚨 User prefs homeLocation is invalid. Falling back to System Default (Yellowstone).");
+            import('./config.js').then(m => {
+                fallback = m.DEFAULT_PREFS.homeLocation;
+                updateUI(fallback, prefs, thisSearchId);
+            });
+
+            return;
+        }
+        await updateUI(fallback, prefs, thisSearchId);
     },
     {timeout: 8000, enableHighAccuracy: false}
 );

@@ -77,14 +77,20 @@ router.get('/logout', (req, res, next) => {
 
 router.post('/update-prefs', async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not logged in");
-     try {
+    try {
         const user = await User.findById(req.user._id);
-        user.preferences = { ...user.preferences, ...req.body.preferences };
+        if (!user) return res.status(404).json({ message: "User not found"});
+
+        if (req.body.preferences) {
+            Object.assign(user.preferences, req.body.preferences);
+        }
+
         await user.save();
         res.json({ success: true, preferences: user.preferences });
-     } catch (err) {
+    } catch (err) {
+        console.error("❌ Prefs Update Error:", err);
         res.status(500).json({ error: err.message });
-     }
+    }
 });
 
 export default router;
