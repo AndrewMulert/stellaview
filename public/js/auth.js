@@ -1,4 +1,4 @@
-import { DEFAULT_PREFS } from './config.js';
+import { DEFAULT_PREFS, getActivePrefs } from './config.js';
 import { geocode } from './api.js'
 
 async function handleRegister(event) {
@@ -37,7 +37,16 @@ async function handleRegister(event) {
     });
 
     if (response.ok) {
+        const newUser = await response.json();
+
+        const sessionData = {
+            userId: newUser.id,
+            expiry: Date.now() + (4 * 7 * 24 * 60 * 60 * 1000)
+        }
+        localStorage.setItem('stella_session', JSON.stringify(sessionData));
+
         alert("Account Created!");
+        location.reload();
     } else {
         const errData = await response.json();
         console.error("Server yelled at us:", errData);
@@ -61,6 +70,20 @@ function updateModalView(user) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    const savedSession = localStorage.getItem('stella_session');
+    let shouldAttemptLogin = false;
+
+    if (savedSession) {
+        const { userId, expiry } = JSON.parse(savedSession);
+
+        if (Date.now() < expiry) {
+            shouldAttemptLogin = true;
+        } else {
+            console.log("Session expired. Cleaning up...");
+            localStorage.removeItem('stella_session');
+        }
+    }
+
     const modal = document.getElementById('auth_modal');
     const profileBtn = document.getElementById('profile_menu');
     const closeBtn = document.getElementById('close_modal');
@@ -73,11 +96,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let initialPrefs = {};
 
+    if (shouldAttemptLogin) {
         try {
             const response = await fetch('/api/user/me');
             if (response.ok) {
                 window.currentUser = await response.json();
                 console.log("✅ User logged in:", window.currentUser.accountInfo.firstName);
+
+                const sessionData = {
+                    userId: window.currentUser.id,
+                    expiry: Date.now() + (4 * 7 * 24 * 60 * 60 * 1000)
+                };
+                localStorage.setItem('stella_session', JSON.stringify(sessionData));
+                console.log("✅ Session persisted");
+
                 updateModalView(window.currentUser);
 
                 if (window.runStargazingEngine) {
@@ -93,6 +125,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.currentUser = null;
             updateModalView(null);
         }
+    } else {
+        updateModalView(null);
+    }
 
     const sliderMappings = [
         { id: 'pref_max_drive', valId: 'val_max_drive' },
@@ -137,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 maxTemp: currentActive.maxTemp,
                 latestStayOut: formateTimeForInput(currentActive.latestStayOut),
                 leadTime: currentActive.leadTime,
-                homeLocation: currentActive.homeLocation || ""
+                homeLocationLabel: currentActive.homeLocation?.label || ""
             };
 
             const uiMapping = {
@@ -174,9 +209,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
 
         const addressString = document.getElementById('pref_fallback_loc').value.trim();
-        let homeLocation = window.currentUser.preferences.homeLocation;
+        let homeLocation = window.currentUser?.preferences?.homeLocation;
 
-        if (addressString !== initialPrefs.homeLocationLabel) {
+        if (addressString && addressString !== initialPrefs.homeLocationLabel) {
             console.log("📍 Address changed, fetching new coordinates...");
 
             const geoData = await geocode(addressString);
@@ -202,6 +237,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             leadTime: parseInt(document.getElementById('pref_lead_time').value),
             homeLocation: homeLocation
         };
+
+        const isLocationSame = updatedPrefs.homeLocation.label === initialPrefs.homeLocationLabel;
+
+        const comparisonInitial = {
+            ...initialPrefs,
+            homeLocation: { label: initialPrefs.homeLocationLabel }
+        };
+
+        const hasBasicsChanged =
+            updatedPrefs.maxDriveTime !== initialPrefs.maxDriveTime ||
+            updatedPrefs.maxBortle !== initialPrefs.maxBortle ||
+            updatedPrefs.minTemp !== initialPrefs.minTemp ||
+            updatedPrefs.maxTemp !== initialPrefs.maxTemp ||
+            updatedPrefs.latestStayOut !== initialPrefs.latestStayOut ||
+            updatedPrefs.leadTime !== initialPrefs.leadTime;
+
+        if (!hasBasicsChanged && isLocationSame) {
+            console.log("No changes detected. Skipping update.");
+            settingsModal.classList.add('hidden');
+            return;
+        }
 
         if (JSON.stringify(updatedPrefs) === JSON.stringify(initialPrefs)) {
             console.log("No changes detected. Skipping update.");
@@ -248,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
+            localStorage.removeItem('stella_session');
             try {
                 await fetch('/api/user/logout', { method: 'POST' });
                 window.location.reload();

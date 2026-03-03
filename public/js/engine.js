@@ -1,5 +1,5 @@
 import SunCalc from "https://esm.sh/suncalc@1.9.0";
-import { calculateDriveTime, calculateFahrenheit, getNDVI, getRadianceValue} from './utils.js';
+import { calculateDriveTime, calculateFahrenheit, getNDVI, getRadianceValue, radianceToBortle} from './utils.js';
 import * as api from './api.js';
 import { predictWithBrain } from "./brain.js";
 
@@ -41,7 +41,12 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 }
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs) {
+    const loader = document.getElementById('ai-loader');
+    const statusText = document.getElementById('ai_status-text');
+    const spinner = loader.querySelector(".spinner");
     const weeklyContainer = document.querySelector("#weekly-outlook");
+    if (loader) loader.classList.remove('hidden');
+    if (spinner) spinner.classList.remove('hidden');
     if (weeklyContainer) weeklyContainer.classList.add('hidden');
 
     /*A running talley of why locations may fail to determine the overall reason for failure*/
@@ -70,9 +75,11 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 
     if (latestStay.includes(':')) {
         const [h, m] = latestStay.split(':');
-        windowEndTime = new Date(date);
-        windowEndTime.setHours(parseInt(h), parseInt(m), 0);
-        if (parseInt(h) < 12) windowEndTime.setDate(windowEndTime.getDate() + 1);
+        windowEndTime.setHours(parseInt(h), parseInt (m), 0);
+
+        if (windowEndTime <= startOfNight) {
+            windowEndTime.setDate(windowEndTime.getDate() + 1);
+        }
     }
 
     const moonIllum = SunCalc.getMoonIllumination(date).fraction;
@@ -87,54 +94,64 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
         return { sites: [], topFailure: 'moon' };
     }
 
-    const [lightRes, vegRes] = await Promise.all([
-        fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
-        fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
-    ]);
-    const lightTiles = (await lightRes.json()).tiles;
-    const vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
+    try {
+        const [lightRes, vegRes] = await Promise.all([
+            fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
+            fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
+        ]);
+        const lightTiles = (await lightRes.json()).tiles;
+        const vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
+        statusText.innerText = "🗺️ Mapping light pollution tiles...";
 
-    const results = await Promise.all(allDarkSites.map(async (site) => {
-        const travelTime = calculateDriveTime(userLocation, site);
+        const results = await Promise.all(allDarkSites.map(async (site) => {
+            const travelTime = calculateDriveTime(userLocation, site);
 
 
-        if (travelTime > prefs.maxDriveTime || 120){
-            console.log(`  -> Filtered: Drive too long (${Math.round(travelTime)} > ${prefs.maxDriveTime})`);
-            return null;
-        };
+            if (travelTime > prefs.maxDriveTime || 120){
+                console.log(`  -> Filtered: Drive too long (${Math.round(travelTime)} > ${prefs.maxDriveTime})`);
+                return null;
+            };
 
-        const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), getRadianceValue(site.lat, site.lon, lightTiles), getNDVI(site.lat, site.lon, vegTiles)]);
-        console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
+            statusText.innerText = "🛰️ Contacting satellites for weather...";
+            const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), getRadianceValue(site.lat, site.lon, lightTiles), getNDVI(site.lat, site.lon, vegTiles)]);
+            console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
 
-        if (radiance > (prefs.maxBortle || 5)){
-            console.log(`  -> Filtered: Too much light pollution (${radiance} > ${prefs.maxBortle})`);
-            return null;
-        };
+            if (radiance > (prefs.maxBortle || 5)){
+                console.log(`  -> Filtered: Too much light pollution (${radiance} > ${prefs.maxBortle})`);
+                return null;
+            };
 
-        if (weatherStatus.success && aqiStatus.success) {
-            const moonPos = SunCalc.getMoonPosition(weatherStatus.bestTime, site.lat, site.lon);
-            const moonDeg = moonPos.altitude *(180 / Math.PI);
+            if (weatherStatus.success && aqiStatus.success) {
+                const moonPos = SunCalc.getMoonPosition(weatherStatus.bestTime, site.lat, site.lon);
+                const moonDeg = moonPos.altitude *(180 / Math.PI);
 
-            if (moonIllum > 0.2 && moonDeg > 0) {
-                console.log(`❌ FAIL ${site.name}: Moon is ${Math.round(moonIllum * 100)}% bright and visible.`);
-                failureCounts.moon++;
+                if (moonIllum > 0.2 && moonDeg > 0) {
+                    console.log(`❌ FAIL ${site.name}: Moon is ${Math.round(moonIllum * 100)}% bright and visible.`);
+                    failureCounts.moon++;
+                    return null;
+                }
+
+                console.log(`  => SUCCESS: ${site.name} passed all checks.`);
+
+                const isMoonActuallyVisible = moonDeg > 0;
+                const siteBortle = radianceToBortle(radiance);
+
+                statusText.innerText = "🧠 Brain is calculating the best views...";
+                const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi, isMoonActuallyVisible);
+
+                return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: siteBortle, ndvi: ndvi};
+            } else {
+                const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
+                console.log(`  -> Filtered: ${reason} constraints failed.`);
+                failureCounts[reason]++;
                 return null;
             }
-
-            console.log(`  => SUCCESS: ${site.name} passed all checks.`);
-
-            const isMoonActuallyVisible = moonDeg > 0;
-
-            const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi, isMoonActuallyVisible);
-
-            return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance, ndvi: ndvi};
-        } else {
-            const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
-            console.log(`  -> Filtered: ${reason} constraints failed.`);
-            failureCounts[reason]++;
-            return null;
-        }
-    }));
+        }));
+    } catch {
+        statusText.innerText = "❌ Something went wrong.";
+        spinner.classList.add('hidden');
+        setTimeout(() => loader.classList.add('hidden'), 3000);
+    }
 
     const finalSites = results.filter(site => site !== null);
     
@@ -214,6 +231,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
                 if (trainedModel) {
                     const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
+                    site.bortle = radianceToBortle(brainResult.rawRadiance);
                     if (brainResult && brainResult.sites && brainResult.sites.length > 0) {
                         score = brainResult.sites[0].score || 0;
                         console.log(`AI Score for ${site.name}: ${score}%`);
@@ -236,7 +254,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     avgTemp: Math.round(weatherStatus.avgTemp),
                     avgClouds: Math.round(weatherStatus.avgClouds),
                     condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy',
-                    bortle: site.bortle || 'N/A',
+                    bortle: radianceToBortle(radiance) || 'N/A',
                     mapUrl: googleMapsUrl || '#',
                     moon: Math.round(moonIllum * 100),
                     moonUp: moonIsUpNow
