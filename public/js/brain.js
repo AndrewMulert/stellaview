@@ -143,6 +143,12 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             continue;
         }
 
+        const siteBortle = radianceToBortle(radiance);
+        if (prefs.maxBortle && siteBortle > prefs.maxBortle) {
+            console.log(`🧠 AI Skip: ${site.name} exceeds Bortle limit (${siteBortle} > ${prefs.maxBortle})`);
+            continue;
+        }
+
         const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
 
         const brainStats = {

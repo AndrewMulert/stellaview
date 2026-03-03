@@ -26,6 +26,7 @@ export function generateMockHistory(numSamples = 1000) {
         const normDuration = scenario.duration / 8;
         const normStartHour = 1 - ((scenario.startHour - 18) / 10);
         const normTemp = Math.max(0, 1 - (Math.abs(scenario.temp - 68) / 40));
+        const mockUserDarknessLimit = Math.random() * 0.7 + 0.3;
         
         let moonPenaltyFactor = 1.0;
         if (scenario.isMoonUp === 1 && scenario.illumination > 0.15) {
@@ -56,6 +57,10 @@ export function generateMockHistory(numSamples = 1000) {
         if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.1;
         if (scenario.clouds > 30) score *=0.2;
         if (scenario.trustFactor < 0.6 ) score *= 0.4;
+
+        if (darknessFactor < mockUserDarknessLimit) {
+            score *= 0.3;
+        }
 
         const normalizedOutput = Math.max(0, Math.min(1, score / 100)); 
 

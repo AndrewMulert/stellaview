@@ -47,7 +47,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.6.2-moon_brightness_failures";
+        const MODEL_VERSION = "2.1.7_bortle_limit";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
@@ -87,7 +87,15 @@ async function initAI() {
 
 async function initializeUserSession() {
     try {
-        const response = await fetch('/api/user/me');
+        const response = await fetch(`/api/user/me?t=${Date.now()}`, {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
 
         if (response.ok) {
             const user = await response.json();
@@ -99,7 +107,7 @@ async function initializeUserSession() {
 
         console.log("👤 No session found. Running as Guest.");
     } catch (err) {
-        console.warn("🌐 Connection issue checking session. Defaulting to Guest.");
+        console.warn("🌐 Connection issue checking session. Defaulting to Guest.", err);
     } 
 
     window.currentUser = null;
@@ -341,8 +349,13 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     if (sessionId !== null && sessionId !== currentSearchId) return;
 
-    if (allSites.length === 0) {
-        statusText.innerText = "🔧 Dark sky servers are busy. Retrying...";
+    if (!allSites || allSites.length === 0) {
+        const statusText = document.getElementById('ai-status-text');
+        const spinner = loader.querySelector(".spinner");
+        if (spinner) spinner.classList.add('hidden');
+        if (statusText){
+            statusText.innerText = "🔭 No sites found or servers busy. Retrying soon...";
+        };
         return;
     }
     console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);

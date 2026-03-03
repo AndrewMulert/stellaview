@@ -116,6 +116,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
             }).filter(site => site && site.lat && site.lon);
 
         } catch (e) {
+            console.error(`Attempt ${i+1} failed:`, e);
             if (i === retries - 1) {
                 const loader = document.getElementById('ai-loader');
                 const statusText = document.getElementById('ai-status-text');
@@ -123,7 +124,9 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                 loader.classList.remove('hidden');
                 const spinner = loader.querySelector(".spinner");
                 if (spinner) spinner.classList.add('hidden');
-                statusText.innerText = "❌ Request failed. Please refresh and try again.";
+                if (statusText) {
+                    statusText.innerText = "❌ Request failed. Please refresh and try again.";
+                }
                 setTimeout(() => {
                     loader.classList.add('hidden')
 

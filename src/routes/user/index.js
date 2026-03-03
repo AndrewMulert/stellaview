@@ -52,7 +52,18 @@ router.post('/register', async (req, res) => {
 
 router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-router.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/'}), (req, res) => res.redirect('/'));
+router.get('/auth/google/callback', 
+    passport.authenticate('google', { failureRedirect: '/login'}), 
+    (req, res) => {
+        req.session.save((err) => {
+            if (err){
+                console.error("Session Save Error:", err);
+                return res.redirect('/login');
+            }
+            console.log("✅ Session saved for user:", req.user.id);
+            res.redirect('/');
+        })
+    });
 
 router.post('/login', passport.authenticate('local'), (req, res) => { 
     res.json({ message: "Welcome back!", user: req.user}) ;

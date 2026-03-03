@@ -21,6 +21,7 @@
     },
     "dependencies": {
         "bcryptjs": "^3.0.3",
+        "connect-mongo": "^6.0.0",
         "connect-pg-simple": "^10.0.0",
         "dotenv": "^17.2.1",
         "ejs": "^3.0.2",

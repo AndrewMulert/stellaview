@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import './src/config/passport.js';
 import connectDB from './src/config/db.js';
+import MongoStore from 'connect-mongo';
 
 import configNodeEnv from './src/middleware/node-env.js';
 import express from 'express';
@@ -40,15 +41,33 @@ app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
 
+app.set('trust proxy', 1);
+
 app.use(session({
+    name: 'stella.sid',
     secret: process.env.SESSION_SECRET || 'stella-nebula-secret',
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI,
+        ttl: 14 * 24 * 60 * 60
+    }),
     cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000
+        sameSite: 'lax'
     }
 }));
+
+app.use((req, res, next) => {
+    if (req.path.includes('/api/user/auth')){
+        res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        res.header('Expires', '-1');
+        res.header('Pragma', 'no-cache');
+    }
+    next();
+})
 
 app.use(passport.initialize());
 app.use(passport.session());
