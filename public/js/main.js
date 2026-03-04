@@ -8,6 +8,8 @@ import * as api from "./api.js";
 const yearSpan = document.querySelector("#year");
 const timeSpan = document.querySelector("#home_time");
 const decisionSpan = document.querySelector("#hero_decision");
+let lastSearchTime = 0;
+const SEARCH_COOLDOWN = 15000;
 
 if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
@@ -253,8 +255,18 @@ function displayResults(sites, prefs) {
 };
 
 async function handleSearch() {
+    const now = Date.now();
+    if (now - lastSearchTime < SEARCH_COOLDOWN) {
+        const remaining = Math.ceil((SEARCH_COOLDOWN - (now - lastSearchTime)) / 1000);
+        const statusText = document.getElementById('ai-status-text');
+        if (statusText) statusText.innerText = `⏳ Please wait ${remaining}s before searching again...`;
+        return;
+    }
+
     const query = document.querySelector("#location_input").value;
     if (!query) return;
+
+    lastSearchTime = Date.now();
 
     currentSearchId++;
     const thisSearchId = currentSearchId;
@@ -354,8 +366,13 @@ const updateUI = async (coords, prefs, sessionId = null) => {
         const spinner = loader.querySelector(".spinner");
         if (spinner) spinner.classList.add('hidden');
         if (statusText){
-            statusText.innerText = "🔭 No sites found or servers busy. Retrying soon...";
+            statusText.innerText = "🔭 No sites found or servers busy. Retrying in 30s...";
         };
+
+        setTimeout(() => {
+            if (loader) loader.classList.add('hidden');
+        }, 5000);
+
         return;
     }
     console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);

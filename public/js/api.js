@@ -1,4 +1,6 @@
 const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
+const geoCache = new Map();
+const CACHE_DURATION = 60 * 60 * 1000;
 
 export async function geocode(query) {
     if (!query) return null;
@@ -56,9 +58,17 @@ export async function getDrivingDistance(coordinates) {
         console.error("OSRM Error:", e);
         return null;
     }
-}
+};
 
 export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
+    const cacheKey = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}`;
+    const cachedEntry = geoCache.get(cacheKey);
+    
+    if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)) {
+        console.log("💾 Using cached StellaView map data for this region...");
+        return cachedEntry.data;
+    }
+    
     const radiusMeters = radiusKm * 1000;
 
     const query = `[out:json][timeout:30];
@@ -90,7 +100,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
             
             const data = await response.json();
 
-            return data.elements.map(el => {
+            const finalResults = data.elements.map(el => {
                 const tags = el.tags || {};
                 const name = (tags.name || "").toLowerCase();
                 const landuse = (tags.landuse || "").toLowerCase();
@@ -115,6 +125,15 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                 };
             }).filter(site => site && site.lat && site.lon);
 
+            if (finalResults.length > 0) {
+                geoCache.set(cacheKey, {
+                    timestamp: Date.now(),
+                    data: finalResults
+                });
+            }
+
+            return finalResults;
+
         } catch (e) {
             console.error(`Attempt ${i+1} failed:`, e);
             if (i === retries - 1) {
@@ -137,6 +156,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
             }
         }
     }
+    return [];
 }
 
 export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
