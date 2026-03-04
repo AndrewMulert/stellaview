@@ -9,6 +9,9 @@ $medium-tertiary: #3C0085;
 $dark-tertiary: #000066;
 $medium-grey: #353535bf;
 $dark-grey: #151515bf;
+$info-good: #57ff65;
+$info-okay: #f9ff57;
+$info-bad: #ff5757;
 $white: #ffffff;
 $black: #000000;
 
@@ -212,7 +215,6 @@ footer{
         font-size: 14px;
         padding: 2px;
         border-radius: 12px;
-        background-color: $base-secondary;
         color: $black;
     }
 
@@ -271,6 +273,18 @@ footer{
         .card_link{
             grid-column: 3 /4;
             font-size: 14px;
+        }
+    }
+
+    .score{
+        &_good{
+            background-color: $info-good;
+        }
+        &_okay{
+            background-color: $info-okay;
+        }
+        &_bad{
+            background-color: $info-bad;
         }
     }
 }
@@ -358,6 +372,18 @@ footer{
             .card_link{
                 grid-column: 3 /4;
                 font-size: 14px;
+            }
+        }
+
+        .score{
+            &_good{
+                background-color: $info-good;
+            }
+            &_okay{
+                background-color: $info-okay;
+            }
+            &_bad{
+                background-color: $info-bad;
             }
         }
     }

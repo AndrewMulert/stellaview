@@ -1,6 +1,30 @@
 const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
-const geoCache = new Map();
+const CACHE_KEY = "stella_geo_cache";
 const CACHE_DURATION = 60 * 60 * 1000;
+
+function getLocalCache() {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+}
+
+function setLocalCache(cache) {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+}
+
+function cleanupOldCache() {
+    const geoCache = getLocalCache();
+    const now = Date();
+    const MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+    let changed = false;
+    for (const key in geoCache) {
+        if (now - geoCache[key].timestamp > MAX_AGE) {
+            delete geoCache[key];
+            changed = true;
+        }
+    }
+    if (changed) setLocalCache(geoCache);
+}
 
 export async function geocode(query) {
     if (!query) return null;
@@ -61,8 +85,9 @@ export async function getDrivingDistance(coordinates) {
 };
 
 export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
-    const cacheKey = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}`;
-    const cachedEntry = geoCache.get(cacheKey);
+    const geoCache = getLocalCache();
+    const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}`;
+    const cachedEntry = geoCache[cacheId];
     
     if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)) {
         console.log("💾 Using cached StellaView map data for this region...");
@@ -126,10 +151,11 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
             }).filter(site => site && site.lat && site.lon);
 
             if (finalResults.length > 0) {
-                geoCache.set(cacheKey, {
+                geoCache[cacheId] = {
                     timestamp: Date.now(),
                     data: finalResults
-                });
+                };
+                setLocalCache(geoCache);
             }
 
             return finalResults;
@@ -171,3 +197,5 @@ export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
     if (!response.ok) throw new Error("Weather API failed");
     return await response.json();
 }
+
+cleanupOldCache();

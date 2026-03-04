@@ -329,10 +329,25 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 
         const isChamp = item.siteName === absoluteBestName;
         card.className =   `weekly-card`;
+        
+        let scorePriority = "";
+        let scoreMessage = "";
+        if (item.score && item.score !== null) {
+            if (item.score >= 80) {
+                scorePriority = "score_good";
+                scoreMessage = "This site is exceptional for stargazing";
+            } else if (item.score >= 50) {
+                scorePriority = "score_okay";
+                scoreMessage = "This site is okay for stargazing";
+            } else {
+                scorePriority = "score_bad";
+                scoreMessage = "This site is limited in quality for stargazing";
+            }
+        }
 
         card.innerHTML = `
             <h2 class="card_date">${isChamp ? `${item.date}` : ''}</h2>
-            <h3>${item.siteName} <span class="card_score">(${item.score}% Match)</span></h3>
+            <h3>${item.siteName} <span class="${scorePriority} card_score" title="${scoreMessage}">(${item.score}% Match)</span></h3>
                 <p class="card_temp">${item.avgTemp} °${unit}</p>
                 <div class="card_bortle">
                     <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>

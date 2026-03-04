@@ -178,7 +178,6 @@ footer p {
   font-size: 14px;
   padding: 2px;
   border-radius: 12px;
-  background-color: #59FFE5;
   color: #000000;
 }
 .site-card .card_temp {
@@ -227,6 +226,15 @@ footer p {
 .site-card .card_directions .card_link {
   grid-column: 3/4;
   font-size: 14px;
+}
+.site-card .score_good {
+  background-color: #57ff65;
+}
+.site-card .score_okay {
+  background-color: #f9ff57;
+}
+.site-card .score_bad {
+  background-color: #ff5757;
 }
 
 .spinner {
@@ -300,6 +308,15 @@ footer p {
 .weekly-card .card_directions .card_link {
   grid-column: 3/4;
   font-size: 14px;
+}
+.weekly-card .score_good {
+  background-color: #57ff65;
+}
+.weekly-card .score_okay {
+  background-color: #f9ff57;
+}
+.weekly-card .score_bad {
+  background-color: #ff5757;
 }
 .weekly_stats {
   display: grid;

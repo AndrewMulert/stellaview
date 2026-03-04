@@ -205,10 +205,25 @@ function displayResults(sites, prefs) {
         const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
         const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
 
+        let scoreMessage = "";
+        let scorePriority = "";
+        if (item.score && item.score !== null) {
+            if (item.score >= 80) {
+                scorePriority = "score_good";
+                scoreMessage = "This site is exceptional for stargazing";
+            } else if (item.score >= 50) {
+                scorePriority = "score_okay";
+                scoreMessage = "This site is okay for stargazing";
+            } else {
+                scorePriority = "score_bad";
+                scoreMessage = "This site is limited in quality for stargazing";
+            }
+        }
+
         const card = document.createElement("div");
         card.className = "site-card";
         card.innerHTML = `
-            <h3>${site.name} <span class="card_score">(${site.score}% Match)</span></h3>
+            <h3>${site.name} <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span></h3>
             <p class="card_temp"><strong>${tempDisplay} °F</strong></p>
             <div class="card_bortle">
                 <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
@@ -486,10 +501,26 @@ function renderFeaturedSite(site, container) {
     const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
     const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
     const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
+    
+    
+    let scorePriority = "";
+    let scoreMessage = "";
+    if (item.score && item.score !== null) {
+        if (item.score >= 80) {
+            scorePriority = "score_good";
+            scoreMessage = "This site is exceptional for stargazing";
+        } else if (item.score >= 50) {
+            scorePriority = "score_okay";
+            scoreMessage = "This site is okay for stargazing";
+        } else {
+            scorePriority = "score_bad";
+            scoreMessage = "This site is limited in quality for stargazing";
+        }
+    }
 
     container.innerHTML = `
     <div class="site-card">
-        <h3>${site.name} <span class="card_score">(${site.score}% Match)</span></h3>
+        <h3>${site.name} <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span></h3>
         <p class="card_temp"><strong>${tempDisplay} °F</strong></p>
         <div class="card_bortle featured-element">
             <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
