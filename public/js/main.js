@@ -505,11 +505,11 @@ function renderFeaturedSite(site, container) {
     
     let scorePriority = "";
     let scoreMessage = "";
-    if (item.score && item.score !== null) {
-        if (item.score >= 80) {
+    if (site.score && site.score !== null) {
+        if (site.score >= 80) {
             scorePriority = "score_good";
             scoreMessage = "This site is exceptional for stargazing";
-        } else if (item.score >= 50) {
+        } else if (site.score >= 50) {
             scorePriority = "score_okay";
             scoreMessage = "This site is okay for stargazing";
         } else {
