@@ -623,6 +623,15 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
 });
 
+document.getElementById('hero_details').addEventListener('click', () => {
+    const drawer = document.getElementById('stella-drawer');
+    const chevron = document.querySelector('button#hero_details #hero_details_svg');
+
+    drawer.classList.toggle('hidden');
+
+    chevron.classList.toggle('rotate-chevron');
+});
+
 async function startApp() {
     console.log("🚀 Initializing StellaView...");
     await initializeUserSession();

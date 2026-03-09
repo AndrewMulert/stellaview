@@ -191,6 +191,10 @@ main {
   flex-shrink: 0;
 }
 
+.rotate-chevron {
+  transform: rotate(180deg) !important;
+}
+
 .settings_modal {
   display: grid;
   grid-template-columns: 20px 1fr 20px;
@@ -460,6 +464,11 @@ main {
   justify-content: center;
   margin-left: auto;
   margin-right: auto;
+}
+#hero_details_svg {
+  transition: transform 0.3s ease-out;
+  transform: rotate(0deg);
+  transform-origin: center;
 }
 
 #logged_in_view {

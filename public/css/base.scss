@@ -232,6 +232,10 @@ main{
     }
 }
 
+.rotate-chevron {
+    transform: rotate(180deg) !important;
+}
+
 .settings{
     &_modal{
         display: grid;
@@ -558,6 +562,12 @@ main{
         justify-content: center;
         margin-left: auto;
         margin-right: auto;
+
+        &_svg{
+            transition: transform 0.3s ease-out;
+            transform: rotate(0deg);
+            transform-origin: center;
+        }
     }
 }
 

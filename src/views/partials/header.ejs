@@ -2,7 +2,7 @@
     <div class="hero">
         <h2 id="hero_decision">Tonight is a good night for stargazing.</h2>
         <div id="ai-loader" class="hidden ai-status">
-            <svg class="spinner" id="hero_details_svg" width="15px" height="15px"><image width="15px" height="15px" href="/images/icon_loading.svg"></image></svg>
+            <svg class="spinner" id="hero_spinner_svg" width="15px" height="15px"><image width="15px" height="15px" href="/images/icon_loading.svg"></image></svg>
             <p id="ai-status-text">Waking up Stella...</p>
         </div>
         <div id="feature-container"></div>
@@ -10,9 +10,11 @@
             <p class="drop-down-message" id="arrow_message">More Locations</p>
             <button href="/" class="nav_links" id="hero_details"><svg id="hero_details_svg" width="30px" height="30px"><image width="30px" height="30px" href="/images/icon_down_chevron.svg"></image></svg></button>
         </div>
-        <div id="results-container" class="results-grid hidden"></div>
-        <section id="weekly_outlook" class="hidden">
-            <h2 class="section-title" id="week_date"></h2>
-            <div id="weekly_grid" class="weekly-scroll-container"></div>
-        </section>
+        <div id="stella-drawer" class="hidden">
+            <div id="results-container" class="results-grid hidden"></div>
+            <section id="weekly_outlook" class="hidden">
+                <h2 class="section-title" id="week_date"></h2>
+                <div id="weekly_grid" class="weekly-scroll-container"></div>
+            </section>
+        </div>
     </div>
