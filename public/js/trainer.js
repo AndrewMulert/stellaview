@@ -28,10 +28,7 @@ export function generateMockHistory(numSamples = 1000) {
         const normTemp = Math.max(0, 1 - (Math.abs(scenario.temp - 68) / 40));
         const mockUserDarknessLimit = Math.random() * 0.7 + 0.3;
         
-        let moonPenaltyFactor = 1.0;
-        if (scenario.isMoonUp === 1 && scenario.illumination > 0.15) {
-            moonPenaltyFactor = Math.pow(1 - scenario.illumination, 4);
-        }
+        const moonPenaltyFactor = (scenario.isMoonUp === 1 && scenario.illumination > 0.15) ? Math.pow(1 - scenario.illumination, 4) : 1.0;
 
         let normNDVI = 0.8; 
         if (scenario.ndvi > 0.8) normNDVI = 0.1;
@@ -46,13 +43,15 @@ export function generateMockHistory(numSamples = 1000) {
 
         let score = (darknessFactor * 30)
             + (normClouds * 15) 
-            + (normMoon * 10 * moonPenaltyFactor)
+            + (normMoon * 15)
             + (normDuration * 10)
             + (normStartHour * 10)
             + (normNDVI * 15)
             + (normTravel * 10)
             + (scenario.trustFactor * 15)
             + (normAQI * 5);
+
+        score *= moonPenaltyFactor;
 
         if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.1;
         if (scenario.clouds > 30) score *=0.2;

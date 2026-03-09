@@ -35,7 +35,7 @@ function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
 
 export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow) {
     const logRad = Math.log10(radiance + 1);
-    const normRadiance = Math.max(0, 1 - (logRad / 2.5));
+    const normRadiance = Math.max(0, 1 - (logRad / 1.5));
 
     let normNDVI = 0.8;
     if (siteNDVI > 0.85) normNDVI = 0.1;
@@ -50,7 +50,12 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normAQI = Math.max(0, (100 - safePm25) / 100);
 
     const mIllum = (moonIllum !== undefined) ? moonIllum : 1.0;
-    const normMoon = Math.pow(1 - mIllum, 2);
+    let normMoon;
+    if (moonIsUpNow) {
+        normMoon = Math.pow(1 - mIllum, 3);
+    } else {
+        normMoon = 1.0;
+    }
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
     const monthlyAvg = weather.monthlyAvg || 40;
@@ -65,14 +70,14 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normPublic =  (site.rating !== undefined) ? site.rating / 5 : 0.5;
     const normUser = (site.userRating !== undefined) ? site.userRating / 5 : 0.5;
 
-    const normTravel = Math.max(0, 1 - (travelTime / 120));
+    const maxLimit = prefs.maxDriveTime || 120;
+    const normTravel = Math.max(0, 1 - (travelTime / maxLimit));
 
     return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
     const STEP = 5;
-    const SAMPLE_SIZE = 4;
 
     const latTile = Math.floor(lat / STEP) * STEP;
     const lonTile = Math.floor(lon / STEP) * STEP;
@@ -96,28 +101,38 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
         const centerRow = Math.floor(latPct * (rows - 1));
         const centerCol = Math.floor(lonPct * (cols - 1));
 
-        let totalRadiance = 0;
-        let samples = 0;
+        let localRadiance = 0;
+        let localWeight = 0;
+        let skyGlowRadiance = 0;
+        let skyGlowWeight = 0;
 
-        for (let rd = -SAMPLE_SIZE; rd <= SAMPLE_SIZE; rd++) {
-            for (let cd = -SAMPLE_SIZE; cd <= SAMPLE_SIZE; cd++){
+        const SEARCH_RADIUS = 12;
+
+        for (let rd = -SEARCH_RADIUS; rd <= SEARCH_RADIUS; rd++) {
+            for (let cd = -SEARCH_RADIUS; cd <= SEARCH_RADIUS; cd++){
                 const r = centerRow + rd;
                 const c = centerCol + cd;
 
                 if (r >= 0 && r < rows && c >= 0 && c < cols) {
                     const val = gridData[r][c];
+                    const distance = Math.sqrt(rd * rd + cd * cd);
 
-                    const distance = Math.sqrt(rd * rd + cd * cd) || 1;
-                    const weight = 1 / distance;
-
-                    totalRadiance += val * weight;
-                    samples += weight;
+                    if (distance <= 2) {
+                        localRadiance += val;
+                        localWeight ++;
+                    } else {
+                        const weight = 1 / (distance * distance);
+                        skyGlowRadiance += val * weight;
+                        skyGlowWeight += weight;
+                    }
                 }
             }
         }
 
-        if (samples === 0) return gridData[centerRow][centerCol];
-        return totalRadiance / samples;
+        const localAvg = localWeight > 0 ? localRadiance / localWeight : 0.01;
+        const glowAvg = skyGlowWeight > 0 ? skyGlowRadiance / skyGlowWeight : 0;
+
+        return localAvg + (glowAvg * 0.5);
     } catch (error){
         console.error("Radiance fetch error:", error);
         return 0.01;

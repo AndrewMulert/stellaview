@@ -64,22 +64,29 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const astroDusk = sunTimes.astronomicalDusk || defaultDusk;
     const astroDawn = sunTimes.astronomicalDawn || defaultDawn;
 
-    let windowStart = new Date(Math.max(new Date(), astroDusk.getTime()));
-    let windowEnd = new Date(astroDawn.getTime());
+    let userHomeCutoff = new Date(astroDusk);
 
     if (prefs.latestStayOut) {
-        const [hours, minutes] = prefs.latestStayOut.split(':');
-        windowEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        const [hours, minutes] = (prefs.latestStayOut || "02:00").split(':');
+        let prefDate = new Date(astroDusk);
+        prefDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
         if (parseInt(hours) < 12) {
-            windowEnd.setDate(windowEnd.getDate() + 1);
+            prefDate.setDate(prefDate.getDate() + 1);
         }
 
-        if (windowEnd > astroDawn) {
-            windowEnd = new Date(astroDawn.getTime() - (60 * 60 * 1000));
-        }
-    } else {
-        windowEnd = new Date(astroDawn.getTime() - (60 * 60 * 1000));
+        userHomeCutoff = prefDate < astroDawn ? prefDate : astroDawn;
+    }
+    
+    let windowStart = new Date(Math.max(new Date(), astroDusk.getTime()));
+    
+    const bufferTime = (prefs.departureLeadTime || 30) * 60 * 1000;
+    const travelPadding = 60 * 60 * 1000;
+
+    let windowEnd = new Date(userHomeCutoff.getTime() - travelPadding - bufferTime);
+
+    if (windowEnd <= windowStart) {
+        windowEnd = new Date(windowStart.getTime() + (60 * 60 * 1000));
     }
 
     console.log(`🌌 Search Window: ${windowStart.toLocaleTimeString()} to ${windowEnd.toLocaleTimeString()}`);
@@ -123,7 +130,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         }
 
         const maxDrive = (prefs.maxDriveTime || 120);
-        if (travelTime > maxDrive){
+        if (travelTime > maxDrive * 1.1){
             console.log(`🧠 AI Skip: ${site.name} is too far (${Math.round(travelTime)}m).`);
             continue;
         }
@@ -131,7 +138,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         console.log(`Checking ${site.name}: Weather=${weather.success}, AQI=${aqi.success}`);
 
         const moonIllum = getMoonIllumination(weather.bestTime || new Date());
-        if (moonIllum > 0.15 && moonIsUpNow) {
+        if (moonIllum > 0.25 && moonIsUpNow) {
             console.log(`🧠 AI Skip: ${site.name} blocked by Moon (${Math.round(moonIllum * 100)}%).`);
             failureCounts.moon++;
             continue;

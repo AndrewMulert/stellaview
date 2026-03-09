@@ -31,7 +31,7 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
     const tempDiff = Math.abs(currentTemp - idealTemp);
     const comfortPenalty = tempDiff * 0.15;
 
-    const distancePenalty = (travelTime / maxDrive) * 5;
+    const distancePenalty = Math.min(5, (travelTime / maxDrive) * 5);
     const moonPenalty = moonIsUpNow ? (Math.pow(moonIllum, 2) * 15) : 0;
     const natureBonus = ndvi * 2;
 
@@ -107,7 +107,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             const travelTime = calculateDriveTime(userLocation, site);
 
 
-            if (travelTime > prefs.maxDriveTime || 120){
+            if (travelTime > (prefs.maxDriveTime * 1.1)){
                 console.log(`  -> Filtered: Drive too long (${Math.round(travelTime)} > ${prefs.maxDriveTime})`);
                 return null;
             };
@@ -334,20 +334,29 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
         let scoreMessage = "";
         if (item.score && item.score !== null) {
             if (item.score >= 80) {
-                scorePriority = "score_good";
+                scorePriority = "score_best";
                 scoreMessage = "This site is exceptional for stargazing";
-            } else if (item.score >= 50) {
+            } else if (item.score >= 60) {
+                scorePriority = "score_good";
+                scoreMessage = "This site is good for stargazing";
+            } else if (item.score >= 40) {
                 scorePriority = "score_okay";
                 scoreMessage = "This site is okay for stargazing";
-            } else {
+            } else if (item.score >= 20) {
                 scorePriority = "score_bad";
-                scoreMessage = "This site is limited in quality for stargazing";
+                scoreMessage = "This site is bad for stargazing";
+            } else {
+                scorePriority = "score_terrible";
+                scoreMessage = "This site is terrible for stargazing";
             }
         }
 
         card.innerHTML = `
             <h2 class="card_date">${isChamp ? `${item.date}` : ''}</h2>
-            <h3>${item.siteName} <span class="${scorePriority} card_score" title="${scoreMessage}">(${item.score}% Match)</span></h3>
+            <div class="card_title">
+                <h3>${item.siteName}</h3>
+                <span class="${scorePriority} card_score" title="${scoreMessage}">(${item.score}% Match)</span>
+            </div>
                 <p class="card_temp">${item.avgTemp} °${unit}</p>
                 <div class="card_bortle">
                     <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>

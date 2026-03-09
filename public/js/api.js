@@ -86,7 +86,8 @@ export async function getDrivingDistance(coordinates) {
 
 export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
     const geoCache = getLocalCache();
-    const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}`;
+    const QUERY_VERSION = "v3.2_number_expanded";
+    const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}|${QUERY_VERSION}`;
     const cachedEntry = geoCache[cacheId];
     
     if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)) {
@@ -98,15 +99,17 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
 
     const query = `[out:json][timeout:30];
     (
-        nwr["leisure"~"nature_reserve|park"](around:${radiusMeters},${lat},${lon});
+        nwr["leisure"="park"](around:${radiusMeters},${lat},${lon});
+        nwr["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
         nwr["boundary"~"national_park|protected_area"](around:${radiusMeters},${lat},${lon});
-  
-        nwr["tourism"="viewpoint"]["access"!~"private|no"](around:${radiusMeters},${lat},${lon});
-  
-        nwr["natural"="peak"]["access"!~"private|no"](around:${radiusMeters},${lat},${lon});
+        nwr["tourism"="camp_site"](around:${radiusMeters},${lat},${lon});
+
+        nwr["natural"~"peak|rock|stone|cliff|canyon"](around:${radiusMeters},${lat},${lon});
+        nwr["tourism"="viewpoint"](around:${radiusMeters},${lat},${lon});
     );
-    nwr._["landuse"!~"residential|farmyard|construction"];
-    out center 40;`;
+
+    nwr._["access"!~"private|no"]["landuse"!~"residential|farmyard|construction|industrial|commercial"];
+    out center 200;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -139,7 +142,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
 
                 if (blacklist.some(word => name.includes(word) || landuse.includes(word))) return null;
 
-                if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name}`);
+                if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name || "Unnamed Protected Area"}`);
 
                 return {
                     name: tags.name || "Remote Dark Spot",

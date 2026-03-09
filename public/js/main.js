@@ -49,7 +49,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.1.7_bortle_limit";
+        const MODEL_VERSION = "2.2.1.1_moon_Illumination_tweak";
         const MAX_AGE_MS = 7 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
@@ -209,21 +209,30 @@ function displayResults(sites, prefs) {
         let scorePriority = "";
         if (site.score && site.score !== null) {
             if (site.score >= 80) {
-                scorePriority = "score_good";
+                scorePriority = "score_best";
                 scoreMessage = "This site is exceptional for stargazing";
-            } else if (site.score >= 50) {
+            } else if (site.score >= 60) {
+                scorePriority = "score_good";
+                scoreMessage = "This site is good for stargazing";
+            } else if (site.score >= 40) {
                 scorePriority = "score_okay";
                 scoreMessage = "This site is okay for stargazing";
-            } else {
+            } else if (site.score >= 20) {
                 scorePriority = "score_bad";
-                scoreMessage = "This site is limited in quality for stargazing";
+                scoreMessage = "This site is bad for stargazing";
+            } else {
+                scorePriority = "score_terrible";
+                scoreMessage = "This site is terrible for stargazing";
             }
         }
 
         const card = document.createElement("div");
         card.className = "site-card";
         card.innerHTML = `
-            <h3>${site.name} <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span></h3>
+            <div class="card_title">
+                <h3>${site.name}</h3>
+                <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span>
+            </div>
             <p class="card_temp"><strong>${tempDisplay} °F</strong></p>
             <div class="card_bortle">
                 <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
@@ -507,20 +516,29 @@ function renderFeaturedSite(site, container) {
     let scoreMessage = "";
     if (site.score && site.score !== null) {
         if (site.score >= 80) {
-            scorePriority = "score_good";
+            scorePriority = "score_best";
             scoreMessage = "This site is exceptional for stargazing";
-        } else if (site.score >= 50) {
+        } else if (site.score >= 60) {
+            scorePriority = "score_good";
+            scoreMessage = "This site is good for stargazing";
+        } else if (site.score >= 40) {
             scorePriority = "score_okay";
             scoreMessage = "This site is okay for stargazing";
-        } else {
+        } else if (site.score >= 20) {
             scorePriority = "score_bad";
-            scoreMessage = "This site is limited in quality for stargazing";
+            scoreMessage = "This site is bad for stargazing";
+        } else {
+            scorePriority = "score_terrible";
+            scoreMessage = "This site is terrible for stargazing";
         }
     }
 
     container.innerHTML = `
     <div class="site-card">
-        <h3>${site.name} <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span></h3>
+        <div class="card_title">
+            <h3>${site.name}</h3>
+            <span class="${scorePriority} card_score" title="${scoreMessage}">(${site.score}% Match)</span>
+        </div>
         <p class="card_temp"><strong>${tempDisplay} °F</strong></p>
         <div class="card_bortle featured-element">
             <svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_bortle.svg"></image></svg>
