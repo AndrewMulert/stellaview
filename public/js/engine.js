@@ -279,7 +279,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                         continue;
                     }
                 } else {
-                    score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, radiance, siteNDVI, moonIsUpNow);
+                    score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, siteRadiance, siteNDVI, moonIsUpNow);
                 }
 
                 const origin = `${userLoc.lat},${userLoc.lon}`;
@@ -293,7 +293,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     avgTemp: Math.round(weatherStatus.avgTemp),
                     avgClouds: Math.round(weatherStatus.avgClouds),
                     condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy',
-                    bortle: radianceToBortle(radiance) || 'N/A',
+                    bortle: radianceToBortle(siteRadiance) || 'N/A',
                     mapUrl: googleMapsUrl || '#',
                     moon: Math.round(moonIllum * 100),
                     moonUp: moonIsUpNow
@@ -360,14 +360,21 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
     weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     const sortedData = [...weeklyData].sort((a, b) => b.score - a.score);
-    const absoluteBestName = sortedData.length > 0 ? sortedData[0].siteName : null;
+
+    const overviewDate = document.getElementById("week_date");
+    const dropMessage = document.getElementById("arrow_message");
+    if (overviewDate && weeklyData.length > 0) {
+        overviewDate.innerText = `${weeklyData[0].date}`
+    }
+    if (dropMessage) {
+        dropMessage.innerText = "Upcoming Clear Skies"
+    }
 
     weeklyData.forEach(item => {
         const unit = prefs.tempUnit === 'celsius' ? 'C' : 'F';
         const card = document.createElement('div');
 
-        const isChamp = item.siteName === absoluteBestName;
-        card.className =   `weekly-card`;
+        card.className = `weekly-card`;
         
         let scorePriority = "";
         let scoreMessage = "";
@@ -391,7 +398,6 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
         }
 
         card.innerHTML = `
-            <h2 class="card_date">${isChamp ? `${item.date}` : ''}</h2>
             <div class="card_title">
                 <h3>${item.siteName}</h3>
                 <span class="${scorePriority} card_score" title="${scoreMessage}">(${item.score}% Match)</span>

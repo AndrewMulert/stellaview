@@ -74,6 +74,14 @@ main{
     }
 }
 
+.drop-down-message{
+    color: $white;
+    text-align: center;
+    margin: 0px;
+    font-weight: 300;
+    font-size: 14px;
+}
+
 .hero{
     background-image: linear-gradient($medium-secondary, $dark-secondary);
     background-color: $dark-secondary;
@@ -282,15 +290,18 @@ main{
 
     .card_title{
         grid-column: 1 /4;
+        grid-row: 1 /2;
         display: grid;
         grid-template-columns: 1fr auto;
 
         h3{
             grid-column: 1 /2;
+            grid-row: 1 /2;
         }
 
         span{
             grid-column: 2 /3;
+            grid-row: 1 /2;
             max-height: 18px;
             align-self: center;
         }
@@ -372,7 +383,7 @@ main{
     &-card{
         display: grid;
         grid-template-columns: 1fr 5px 1fr;
-        grid-template-rows: auto repeat(4, 1fr);
+        grid-template-rows: auto 15px repeat(3, 1fr);
         color: $white;
         margin-bottom: 20px;
 
@@ -398,7 +409,6 @@ main{
 
         h3{
             grid-column: 1 /4;
-            grid-row: 2 /3;
             margin: 0px;
         }
 
@@ -422,6 +432,7 @@ main{
         }
 
         .card_title{
+            margin-top: 10px;
             grid-column: 1 /4;
             display: grid;
             grid-template-columns: 1fr auto;

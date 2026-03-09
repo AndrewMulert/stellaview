@@ -52,6 +52,14 @@ main {
   align-self: center;
 }
 
+.drop-down-message {
+  color: #ffffff;
+  text-align: center;
+  margin: 0px;
+  font-weight: 300;
+  font-size: 14px;
+}
+
 .hero {
   background-image: linear-gradient(#008571, #00464D);
   background-color: #00464D;
@@ -234,14 +242,17 @@ main {
 }
 .site-card .card_title {
   grid-column: 1/4;
+  grid-row: 1/2;
   display: grid;
   grid-template-columns: 1fr auto;
 }
 .site-card .card_title h3 {
   grid-column: 1/2;
+  grid-row: 1/2;
 }
 .site-card .card_title span {
   grid-column: 2/3;
+  grid-row: 1/2;
   max-height: 18px;
   align-self: center;
 }
@@ -307,7 +318,7 @@ main {
 .weekly-card {
   display: grid;
   grid-template-columns: 1fr 5px 1fr;
-  grid-template-rows: auto repeat(4, 1fr);
+  grid-template-rows: auto 15px repeat(3, 1fr);
   color: #ffffff;
   margin-bottom: 20px;
 }
@@ -330,7 +341,6 @@ main {
 }
 .weekly-card h3 {
   grid-column: 1/4;
-  grid-row: 2/3;
   margin: 0px;
 }
 .weekly-card .card_score {
@@ -350,6 +360,7 @@ main {
   justify-content: center;
 }
 .weekly-card .card_title {
+  margin-top: 10px;
   grid-column: 1/4;
   display: grid;
   grid-template-columns: 1fr auto;
