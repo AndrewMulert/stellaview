@@ -106,6 +106,17 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     }
 
     for (let i = 0; i < allSites.length; i++) {
+        const loader = document.getElementById('ai-loader');
+        const statusText = document.getElementById('ai-status-text');
+        let percentComplete;
+
+        if (i <= allSites.length) {
+            const total = allSites.length
+            percentComplete = Math.round((i / total) * 100);
+        }
+
+        loader.classList.remove('hidden');
+        statusText.innerText = `🧠 Making Decision... ${percentComplete}%`;
         const site = allSites[i];
         let weather, aqi, radiance, siteNDVI, travelTime;
 

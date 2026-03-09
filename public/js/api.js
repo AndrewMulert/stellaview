@@ -99,17 +99,15 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
 
     const query = `[out:json][timeout:30];
     (
-        nwr["leisure"="park"](around:${radiusMeters},${lat},${lon});
-        nwr["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
-        nwr["boundary"~"national_park|protected_area"](around:${radiusMeters},${lat},${lon});
-        nwr["tourism"="camp_site"](around:${radiusMeters},${lat},${lon});
-
-        nwr["natural"~"peak|rock|stone|cliff|canyon"](around:${radiusMeters},${lat},${lon});
-        nwr["tourism"="viewpoint"](around:${radiusMeters},${lat},${lon});
+    nwr["leisure"~"park|nature_reserve"]["area"!~"^[0-9]{1,4}\\."](around:${radiusMeters},${lat},${lon});
+    
+    nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
+    nwr["tourism"~"camp_site|viewpoint"](around:${radiusMeters},${lat},${lon});
+    nwr["natural"~"peak|rock|stone|cliff|canyon"](around:${radiusMeters},${lat},${lon});
     );
 
-    nwr._["access"!~"private|no"]["landuse"!~"residential|farmyard|construction|industrial|commercial"];
-    out center 200;`;
+    nwr._["sport"!~".*"]["lit"!~"yes"]["access"!~"private|no"]["landuse"!~"residential|industrial|commercial"];
+    out center 150;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -140,7 +138,11 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
 
                 const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
 
+                const urbanKeywords = ["tennis", "soccer", "baseball", "playground", "skate", "complex", "stadium", "memorial", "elementary", "high school"];
+
                 if (blacklist.some(word => name.includes(word) || landuse.includes(word))) return null;
+
+                if (urbanKeywords.some(word => name.includes(word) || landuse.includes(word))) return null;
 
                 if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name || "Unnamed Protected Area"}`);
 
