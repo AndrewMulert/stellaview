@@ -274,6 +274,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (response.ok){ 
                 alert("Preferences Saved!");
+                if (window.runStargazingEngine) {
+                    window.runSTargazingEngine(updatedPrefs, { saveToCache: true});
+                }
                 settingsModal.classList.add('hidden');
                 location.reload();
             } else {

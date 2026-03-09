@@ -90,6 +90,25 @@ const userSchema = new mongoose.Schema({
                 type: String,
                 default: null
             }
+        },
+        cachedNearbySites: {
+            sites: [{
+                name: String,
+                lat: Number,
+                lon: Number,
+                bortle: Number,
+                vegetation: Number,
+                distance: Number,
+                osmId: String,
+                score: Number,
+                bestTime: Date,
+                avgTemp: Number,
+                avgClouds: Number
+            }],
+            lastUpdated: {
+                type: Date,
+                default: Date.now
+            }
         }
     },
     savedSites: [{
@@ -108,7 +127,24 @@ const userSchema = new mongoose.Schema({
         }
     }],
     history: [{
-        type: String
+        homeBase: {
+            lat: Number,
+            lon: Number,
+            label: String
+        },
+        discoveredSites: [{
+            name: String,
+            lat: Number,
+            lon: Number,
+            radiance: Number,
+            ndvi: Number,
+            bortle: Number,
+            mapUrl: String
+        }],
+        timestamp: { 
+            type: Date, 
+            default: Date.now 
+        }
     }]
 },
 {collection: 'user'});

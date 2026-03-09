@@ -104,6 +104,13 @@ async function initializeUserSession() {
             console.log("✅ Welcome back, " + user.accountInfo.firstName);
             window.currentUser = user;
             updateModalView(user);
+
+            const cache = user.preferences?.cachedNearbySites;
+            if (cache && cache.sites && cache.sites.length > 0) {
+                console.log(`🧠 Warming Engine with ${cache.sites.length} known locations...`);
+                window.engineWarmth = cache.sites;
+            }
+            updateModalView(user);
             return;
         }
 
@@ -147,7 +154,7 @@ async function runStargazingEngine() {
         statusText.innerText = "📌 Location Received...";
         console.log("Step 4: Location received!", pos.coords.latitude, pos.coords.longitude);
         const userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        await updateUI(userLoc, prefs, thisSearchId);
+        await updateUI(userLoc, prefs, thisSearchId, false);
     },
     async (err) => {
         let errorType = "Unknown Error";
@@ -168,7 +175,7 @@ async function runStargazingEngine() {
 
             return;
         }
-        await updateUI(fallback, prefs, thisSearchId);
+        await updateUI(fallback, prefs, thisSearchId, true);
     },
     {timeout: 8000, enableHighAccuracy: false}
 );
@@ -449,6 +456,8 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
             if (spinner) spinner.classList.remove('hidden');
         }, 3000);
+
+        syncSearchResults(coords, sites);
     } else {
         const messages = {
             clouds: "Hazy vision. The stars continue their dance beyond the veil.",
@@ -467,9 +476,7 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
         statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week...";
 
-        const shortlisted = sites.length > 0 ? sites : allSites.filter(s => {
-            return true;
-        });
+        const shortlisted = allSites;
 
         const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs, trainedModel);
         renderWeeklyOutlook(weeklyData, prefs);
@@ -569,6 +576,41 @@ function renderFeaturedSite(site, container) {
             <a class="card_link" href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
         </div>
     `
+}
+
+async function syncSearchResults(coords, sites) {
+    if (!window.currentUser || !Array.isArray(sites) || sites.length === 0) return;
+
+    try {
+        const discoveryData = sites.map(site => ({
+            name: site.name,
+            lat: site.lat,
+            lon: site.lon,
+            bortle: site.bortle,
+            vegetation: site.ndvi || 0,
+            distance: site.travelTime || 0,
+            osmId: site.osmId || `gen_${Math.random().toString(36).substr(2, 9)}`,
+            score: site.score,
+            bestTime: site.bestTime,
+            avgTemp: site.avgTemp,
+            avgClouds: site.avgClouds
+        }));
+        
+        const response = await fetch('/api/user/save-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discoveredSites: discoveryData}),
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log("✅ Sync successful:", data);
+    } catch (err) {
+        console.error("Discovery sync failed:", err);
+    }
 }
 
 document.addEventListener('click', (e) => {

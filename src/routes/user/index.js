@@ -104,4 +104,29 @@ router.post('/update-prefs', async (req, res) => {
     }
 });
 
+router.post('/save-search', async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required to save history."});
+    }
+    try{
+        const { discoveredSites } = req.body;
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id, 
+            { 
+                $set: { 
+                    'preferences.cachedNearbySites.sites': discoveredSites,
+                    'preferences.cachedNearbySites.lastUpdated': new Date()
+                }  
+            },
+            {new: true} 
+        );
+
+        console.log("✅ History updated for:", updatedUser.accountInfo.email);
+        res.status(200).json({ success: true });
+    } catch (err) {
+        console.error("❌ Save Search Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 export default router;

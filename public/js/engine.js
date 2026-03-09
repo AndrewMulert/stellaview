@@ -40,7 +40,7 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
     return percentage.toFixed(1);
 }
 
-export async function findBestSites(date, userLocation, allDarkSites, prefs) {
+export async function findBestSites(date, userLocation, allDarkSites, prefs, isHomeMode = false) {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai_status-text');
     const spinner = loader.querySelector(".spinner");
@@ -52,6 +52,25 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     /*A running talley of why locations may fail to determine the overall reason for failure*/
     let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");
+
+    let sitesToQuery = [];
+    let isUsingCache = false;
+
+    const homeLoc = window.currentUser?.preferences?.homeLocation;
+    const cachedSites = window.currentUser?.preferences?.cachedNearbySites?.sites;
+
+    if (isAtHome(userLocation, homeLoc) && cachedSites?.length > 0) {
+        console.log("🚀 Warm Start active: Coordinates match home location.");
+        const cachedIds = new Set(cachedSites.map(s => s.name));
+        const remainingSites = allDarkSites.filter(s => !cachedIds.has(s.name));
+        
+        sitesToQuery = cachedSites;
+        isUsingCache = true;
+    } else {
+        console.log("📡 Cold Start: Location mismatch or no cache. Fetching fresh data.");
+        sitesToQuery = allDarkSites;
+        isUsingCache = false;
+    }
 
 
     const decisionSpan = document.querySelector("#hero_decision");
@@ -95,15 +114,19 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
     }
 
     try {
-        const [lightRes, vegRes] = await Promise.all([
-            fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
-            fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
-        ]);
-        const lightTiles = (await lightRes.json()).tiles;
-        const vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
+        let lightTiles = [], vegTiles = [];
+        if (!isUsingCache) {
+            const [lightRes, vegRes] = await Promise.all([
+                fetch('https://andrewmulert.github.io/light_tiles/manifest.json'),
+                fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json')
+            ]);
+            lightTiles = (await lightRes.json()).tiles;
+            vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
+        }
+
         statusText.innerText = "🗺️ Mapping light pollution tiles...";
 
-        const results = await Promise.all(allDarkSites.map(async (site) => {
+        const results = await Promise.all(sitesToQuery.map(async (site) => {
             const travelTime = calculateDriveTime(userLocation, site);
 
 
@@ -113,7 +136,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
             };
 
             statusText.innerText = "🛰️ Contacting satellites for weather...";
-            const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), getRadianceValue(site.lat, site.lon, lightTiles), getNDVI(site.lat, site.lon, vegTiles)]);
+            const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), isUsingCache ? Promise.resoleve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles)]);
             console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
 
             if (radiance > (prefs.maxBortle || 5)){
@@ -161,23 +184,38 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs) {
 }
 
 export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel = null) {
-    const nearbySites = allSites.filter(site => {
-        const travelTime = calculateDriveTime(userLoc, site);
-        return travelTime <= (prefs.maxDriveTime || 120);
-    });
+    const homeLoc = window.currentUser?.preferences?.homeLocation;
+    const cache = window.currentUser?.preferences?.cachedNearbySites;
 
-    console.log(`Weekly Outlook: Parallel checking ${nearbySites.length} nearby sites.`);
+    let sitesToProcess;
+    let isUsingCache = false;
 
-    const [vegRes, lightRes] = await Promise.all([
-        fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json'),
-        fetch('https://andrewmulert.github.io/light_tiles/manifest.json')
-    ]);
-    const vegTiles = (await vegRes.json()).tiles;
-    const lightTiles = (await lightRes.json()).tiles;
+    if (isAtHome(userLoc, homeLoc) && cache?.sites?.length > 0) {
+        console.log("🚀 Weekly Warm Start: Using cached nearby sites.");
+        sitesToProcess = cache.sites;
+        isUsingCache = true;
+    } else {
+        sitesToProcess = allSites.filter(site => {
+            const travelTime = calculateDriveTime(userLoc, site);
+            return travelTime <= (prefs.maxDriveTime || 120);
+        });
+    }
+
+    console.log(`Weekly Outlook: Parallel checking ${sitesToProcess.length} nearby sites.`);
+
+    let vegTiles = [], lightTiles = [];
+    if (!isUsingCache) {
+        const [vegRes, lightRes] = await Promise.all([
+            fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json'),
+            fetch('https://andrewmulert.github.io/light_tiles/manifest.json')
+        ]);
+        vegTiles = (await vegRes.json()).tiles;
+        lightTiles = (await lightRes.json()).tiles;
+    }
 
     const processSite = async (site) => {
         try {
-            const [weatherData, aqiData, siteNDVI, radiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 8),api.getAirQuality(site.lat, site.lon, 7), getNDVI(site.lat, site.lon, vegTiles), getRadianceValue(site.lat, site.lon, lightTiles)]);
+            const [weatherData, aqiData, siteNDVI, siteRadiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 8),api.getAirQuality(site.lat, site.lon, 7), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles), isUsingCache ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles)]);
             
             const travelTime = calculateDriveTime(userLoc, site);
             const siteWeeklyResults = [];
@@ -191,7 +229,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                 const nightStart = times.nauticalDusk;
                 const nightEnd = times.nauticalDawn;
 
-                if (!nightStart || !nightEnd || nightStart >= nightEnd) {
+                if (!nightStart || !nightEnd) continue;
+                if (nightStart >= nightEnd) {
                     if (nightStart >= nightEnd) {
                         nightEnd.setDate(nightEnd.getDate() + 1);
                     }
@@ -220,7 +259,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                 const prefetched = {
                     weather: weatherStatus,
                     aqi: currentAqiStatus,
-                    radiance: radiance || 0,
+                    radiance: siteRadiance || 0,
                     ndvi: siteNDVI,
                     travelTime: travelTime,
                     moonIsUp: moonIsUpNow,
@@ -270,13 +309,13 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
     const resultsArray = [];
     const batchSize = 5;
 
-    for (let i = 0; i < nearbySites.length; i += batchSize) {
-        const batch = nearbySites.slice(i, i + batchSize);
+    for (let i = 0; i < sitesToProcess.length; i += batchSize) {
+        const batch = sitesToProcess.slice(i, i + batchSize);
         const batchPromises = batch.map(site => processSite(site));
         const batchResults = await Promise.all(batchPromises);
         resultsArray.push(...batchResults);
         
-        if (i + batchSize < nearbySites.length) {
+        if (i + batchSize < sitesToProcess.length) {
             await new Promise(r => setTimeout(r, 300));
         }
     }
@@ -503,4 +542,11 @@ function calculateCelsius(temp) {
 function calculateKilometers(distance) {
     const kilometers = distance * 1.60934;
     return kilometers;
+}
+
+function isAtHome(currentLoc, homeLoc) {
+    if (!homeLoc || !homeLoc.lat || !homeLoc.lon) return false;
+    const threshold = 0.01;
+    return Math.abs(currentLoc.lat - homeLoc.lat) < threshold && 
+           Math.abs(currentLoc.lon - homeLoc.lon) < threshold;
 }
