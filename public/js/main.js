@@ -8,6 +8,7 @@ import * as api from "./api.js";
 const yearSpan = document.querySelector("#year");
 const timeSpan = document.querySelector("#home_time");
 const decisionSpan = document.querySelector("#hero_decision");
+let wakeLock = null;
 let lastSearchTime = 0;
 const SEARCH_COOLDOWN = 15000;
 
@@ -43,14 +44,25 @@ let currentSearchId = 0;
 let activeAbortController = null;
 let currentUser = null;
 
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log("☀️ Wake Lock active. Stella won't sleep.");
+        }
+    } catch (err) {
+        console.warn("WakeLock failed:", err.message);
+    }
+}
+
 async function initAI() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.2.1.1_moon_Illumination_tweak";
-        const MAX_AGE_MS = 7 * 24 * 60 * 1000;
+        const MODEL_VERSION = "2.2.2.1_personalization_update";
+        const MAX_AGE_MS = 30 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
         const metadata = JSON.parse(localStorage.getItem('stella_metadata') || '{}');
@@ -68,7 +80,8 @@ async function initAI() {
             }
             statusText.innerText = "🎓 Training AI for your device... (This may take 10-20 seconds)";
             console.log("🎓 Training a fresh brain...");
-            trainedModel = await trainStellaBrain();
+            const prefs = await getActivePrefs(window.currentUser);
+            trainedModel = await trainStellaBrain(prefs);
             await trainedModel.save('localstorage://stella-model');
 
             localStorage.setItem('stella_metadata', JSON.stringify({
@@ -621,6 +634,15 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
+});
+
+document.addEventListener("visibilityChange", () => {
+    if (document.visibilityState === "visible") {
+        if (!document.getElementById('ai-loader').classList.contains('hidden')) {
+            console.log("♻️ Stella resumed. Ensuring AI is still active...");
+            if (!trainedModel) initAI();
+        }
+    }
 });
 
 document.getElementById('hero_details').addEventListener('click', () => {

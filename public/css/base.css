@@ -358,7 +358,7 @@ main {
 .weekly-card .card_temp {
   grid-column: 1/2;
   grid-row: 3/6;
-  font-size: 70px;
+  font-size: 60px;
   margin-top: 0px;
   margin-bottom: 0px;
   justify-content: center;

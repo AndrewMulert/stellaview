@@ -1,4 +1,4 @@
-const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
+export const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const CACHE_KEY = "stella_geo_cache";
 const CACHE_DURATION = 60 * 60 * 1000;
 
@@ -201,6 +201,14 @@ export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Weather API failed");
     return await response.json();
+}
+
+export async function getMeanTemperature(lat, lon){
+    const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
+    const avgRes = await fetch(avgTempUrl);
+    const avgData = await avgRes.json();
+    const seasonalMean = avgData.daily.temperature_2m_mean[0];
+    return seasonalMean
 }
 
 cleanupOldCache();

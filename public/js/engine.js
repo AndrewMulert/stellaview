@@ -136,10 +136,10 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
             };
 
             statusText.innerText = "🛰️ Contacting satellites for weather...";
-            const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), isUsingCache ? Promise.resoleve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles)]);
+            const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), isUsingCache ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles)]);
             console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
 
-            if (radiance > (prefs.maxBortle || 5)){
+            if (siteBortle > (prefs.maxBortle || 5)){
                 console.log(`  -> Filtered: Too much light pollution (${radiance} > ${prefs.maxBortle})`);
                 return null;
             };
@@ -162,7 +162,7 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
                 statusText.innerText = "🧠 Brain is calculating the best views...";
                 const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi, isMoonActuallyVisible);
 
-                return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: siteBortle, ndvi: ndvi};
+                return { ...site, travelTime: Math.round(travelTime), score: score, bestTime: weatherStatus.bestTime, duration: weatherStatus.duration, avgTemp: weatherStatus.avgTemp, avgClouds: weatherStatus.avgClouds, radiance: radiance, bortle: siteBortle, ndvi: ndvi};
             } else {
                 const reason = !weatherStatus.success ? weatherStatus.reason : 'aqi';
                 console.log(`  -> Filtered: ${reason} constraints failed.`);
@@ -203,19 +203,17 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
     console.log(`Weekly Outlook: Parallel checking ${sitesToProcess.length} nearby sites.`);
 
-    let vegTiles = [], lightTiles = [];
-    if (!isUsingCache) {
-        const [vegRes, lightRes] = await Promise.all([
-            fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json'),
-            fetch('https://andrewmulert.github.io/light_tiles/manifest.json')
-        ]);
-        vegTiles = (await vegRes.json()).tiles;
-        lightTiles = (await lightRes.json()).tiles;
-    }
+    const [vegRes, lightRes] = await Promise.all([
+        fetch('https://AndrewMulert.github.io/vegetation_tiles/manifest.json'),
+        fetch('https://andrewmulert.github.io/light_tiles/manifest.json')
+    ]);
+    const vegTiles = (await vegRes.json()).tiles;
+    const lightTiles = (await lightRes.json()).tiles;
+
 
     const processSite = async (site) => {
         try {
-            const [weatherData, aqiData, siteNDVI, siteRadiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 8),api.getAirQuality(site.lat, site.lon, 7), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles), isUsingCache ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles)]);
+            const [weatherData, aqiData, siteNDVI, siteRadiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 8),api.getAirQuality(site.lat, site.lon, 7), isUsingCache ? Promise.resolve(site.vegetation || 0) : getNDVI(site.lat, site.lon, vegTiles), (isUsingCache && site.radiance) ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles)]);
             
             const travelTime = calculateDriveTime(userLoc, site);
             const siteWeeklyResults = [];
@@ -256,6 +254,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                 const moonPos = SunCalc.getMoonPosition(weatherStatus.bestTime, site.lat, site.lon);
                 const moonIsUpNow = moonPos.altitude > 0;
 
+                const seasonalMean = api.getMeanTemperature(site.lat, site.lon);
+
                 const prefetched = {
                     weather: weatherStatus,
                     aqi: currentAqiStatus,
@@ -263,7 +263,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     ndvi: siteNDVI,
                     travelTime: travelTime,
                     moonIsUp: moonIsUpNow,
-                    moonIllum: moonIllum
+                    moonIllum: moonIllum,
+                    seasonalMean: seasonalMean
                 };
 
                 let score;
@@ -282,6 +283,9 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, siteRadiance, siteNDVI, moonIsUpNow);
                 }
 
+                const rawRadiance = siteRadiance ?? site.radiance ?? 0;
+                const finalBortle = radianceToBortle(rawRadiance);
+
                 const origin = `${userLoc.lat},${userLoc.lon}`;
                 const destination = `${site.lat},${site.lon}`;
                 const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
@@ -293,7 +297,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     avgTemp: Math.round(weatherStatus.avgTemp),
                     avgClouds: Math.round(weatherStatus.avgClouds),
                     condition: weatherStatus.avgClouds < 10 ? 'Clear': 'Partly Cloudy',
-                    bortle: radianceToBortle(siteRadiance) || 'N/A',
+                    radiance: rawRadiance,
+                    bortle: finalBortle,
                     mapUrl: googleMapsUrl || '#',
                     moon: Math.round(moonIllum * 100),
                     moonUp: moonIsUpNow

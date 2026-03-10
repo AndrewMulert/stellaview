@@ -22,18 +22,16 @@ export function calculateFahrenheit(temp) {
     return fahrenheit;
 }
 
-function normalizeTempContextual(currentTemp, minPref, maxPref, monthlyAvg) {
-    if (currentTemp < minPref || currentTemp > maxPref) return 0.0;
+export function normalizeTempContextual(currentTemp, minPref, maxPref, seasonalMean) {
+    const userIdeal = (minPref + maxPref) / 2;
+    const shiftedPeak = (userIdeal * 0.7) + (seasonalMean * 0.3);
+    const sigma = (maxPref - minPref) / 2;
+    const comfortScore = Math.exp(-Math.pow(currentTemp - shiftedPeak, 2) / (2 * Math.pow(sigma, 2)));
 
-    const contextualIdeal = (monthlyAvg + 68) /2;
-
-    const sigma = (maxPref - minPref) / 4;
-    const score  = Math.exp(-Math.pow(currentTemp - contextualIdeal, 2) / (2 * Math.pow(sigma, 2)));
-
-    return score;
+    return Math.max(0, Math.min(1, comfortScore));
 }
 
-export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow) {
+export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow, seasonalMean) {
     const logRad = Math.log10(radiance + 1);
     const normRadiance = Math.max(0, 1 - (logRad / 1.5));
 
@@ -58,8 +56,9 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     }
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
-    const monthlyAvg = weather.monthlyAvg || 40;
-    const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, monthlyAvg);
+    const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, seasonalMean);
+    const normSeasonal = Math.max(0, Math.min(1, (seasonalMean - 20) / 80));
+    const tempDeviation = (currentTempF - seasonalMean) / 30;
 
     const normStart = Math.max(0, 1 -(startOffset / 12));
     const duration = weather.duration || 0;
@@ -73,7 +72,7 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const maxLimit = prefs.maxDriveTime || 120;
     const normTravel = Math.max(0, 1 - (travelTime / maxLimit));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow ];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow, normSeasonal, tempDeviation ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
