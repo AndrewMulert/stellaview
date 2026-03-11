@@ -238,6 +238,10 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     async function worker() {
         while (queue.length > 0) {
             const [index, site] = queue.shift();
+
+            completedCount++;
+            statusText.innertext = `🧠 Making Decision... ${Math.round((completedCount / allSites.length) * 100)}%`;
+            
             const result = await processSite(site, index);
             results[index] = result;
         }
