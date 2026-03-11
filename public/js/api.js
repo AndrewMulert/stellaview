@@ -1,6 +1,7 @@
 export const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const CACHE_KEY = "stella_geo_cache";
 const CACHE_DURATION = 60 * 60 * 1000;
+const aqiCache = new Map();
 
 function getLocalCache() {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -52,20 +53,31 @@ export async function getAirQuality(lat, lon, days = 7) {
         return {success: false, reason: "missing_coords"};
     }
 
-    const safeDays = Math.min(days, 7);
-    
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=${safeDays}`;
+    const cacheKey = `${lat.toFixed(1)}_${lon.toFixed(1)}_${days}`;
 
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("AQI API Error");
-        const data = await response.json();
-
-        return {success: true, hourly: data.hourly, timezone: data.timezone };
-    } catch (error) {
-        console.error("AQI API failed, using pristine air fallback.", error);
-        return {success: true, fallback: true, hourly: { pm2_5: new Array(168).fill(5) } };
+    if (aqiCache.has(cacheKey)) {
+        return aqiCache.get(cacheKey);
     }
+
+    const request = (async () => {
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=${days}`;
+    
+        try {
+            const response = await fetch(url);
+            
+            if (response.status === 429) throw new Error("429");
+            if (!response.ok) throw new Error("API_ERROR");
+        
+            const data = await response.json();
+            return {success: true, hourly: data.hourly, timezone: data.timezone, source: 'live' };
+        } catch (error) {
+            console.error(`AQI ${error.message === '429' ? 'Rate Limited' : 'Failed'}: Using fallback.`);
+            return {success: true, fallback: true, hourly: { pm2_5: new Array(168).fill(5), source: 'fallback' } };
+        };
+    })();
+
+    aqiCache.set(cacheKey, request);
+    return request;
 }
 
 export async function getDrivingDistance(coordinates) {
@@ -204,11 +216,25 @@ export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
 }
 
 export async function getMeanTemperature(lat, lon){
-    const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
-    const avgRes = await fetch(avgTempUrl);
-    const avgData = await avgRes.json();
-    const seasonalMean = avgData.daily.temperature_2m_mean[0];
-    return seasonalMean
+    try {
+        const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
+        const avgRes = await fetch(avgTempUrl);
+
+        if (avgRes.status === 429) {
+            console.warn("Rate limited by Open-Meteo. Falling back.");
+            return null;
+        }
+
+        const avgData = await avgRes.json();
+
+        if (avgData?.daily?.temperature_2m_mean) {
+            return avgData.daily.temperature_2m_mean[0];
+        }
+        return null;
+    } catch (error) {
+        console.error("Mean Temp API Error:", error);
+        return null;
+    }
 }
 
 cleanupOldCache();

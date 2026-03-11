@@ -49,11 +49,15 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         let normNDVI = Math.max(0.1, 1.0 - Math.abs(scenario.ndvi - 0.4) * 2); 
         normNDVI = Math.max(0.1, normNDVI);
 
+        const scaledSeasonalMean = Math.max(0, Math.min(1, scenario.seasonalMean / 120));
+
+        const clampedDeviation = Math.max(-1, Math.min(1, (scenario.temp - scenario.seasonalMean) / 30));
+
         const inputVector = [
             darknessFactor, normNDVI, normClouds, normAQI, normMoon, 
             normTemp, scenario.trustFactor, scenario.publicRating / 5, scenario.userRating / 5, 
-            normTravel, normDuration, normStartHour, scenario.isMoonUp, scenario.seasonalMean / 100,
-            tempDeviation
+            normTravel, normDuration, normStartHour, scenario.isMoonUp, scaledSeasonalMean,
+            clampedDeviation
         ];
 
         let score = (darknessFactor * 30)
@@ -85,7 +89,9 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         }
 
         const noise = (Math.random() - 0.5) * 0.05;
-        const normalizedOutput = Math.max(0, Math.min(1, (score / 100) + noise)); 
+        const baseScore = score / 100;
+        const weightedOutput = Math.pow(baseScore, 0.5);
+        const normalizedOutput = Math.max(0, Math.min(1, weightedOutput + noise)); 
 
         trainingData.push({ input: inputVector, output: [normalizedOutput] });
     }

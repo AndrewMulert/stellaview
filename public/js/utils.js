@@ -57,8 +57,10 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, seasonalMean);
-    const normSeasonal = Math.max(0, Math.min(1, (seasonalMean - 20) / 80));
-    const tempDeviation = (currentTempF - seasonalMean) / 30;
+    const validMean = (seasonalMean && seasonalMean !== 0) ? seasonalMean : currentTempF;
+    const normSeasonal = Math.max(0, Math.min(1, seasonalMean / 120));
+    const tempDeviation = Math.max(-1, Math.min(1, (currentTempF - validMean) / 30));
+    if (isNaN(tempDeviation)) console.error("Temp Deviation is NaN! Check seasonalMean.");
 
     const normStart = Math.max(0, 1 -(startOffset / 12));
     const duration = weather.duration || 0;

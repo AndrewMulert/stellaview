@@ -61,7 +61,7 @@ async function initAI() {
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.2.2.1_personalization_update";
+        const MODEL_VERSION = "2.2.3_personalized_results";
         const MAX_AGE_MS = 30 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();

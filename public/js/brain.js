@@ -14,8 +14,9 @@ export async function trainStellaBrain(prefs) {
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 20, inputShape: [15], activation: 'relu'}));
-    model.add(tf.layers.dense({ units: 10, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 32, inputShape: [15], activation: 'relu'}));
+    model.add(tf.layers.dropout({ rate: 0.1 }));
+    model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
     model.compile({
@@ -25,15 +26,14 @@ export async function trainStellaBrain(prefs) {
 
     console.log("Brain training started...");
     await model.fit(inputs, outputs, {
-        epochs: 30,
-        batchSize: 64,
-        yieldEveryIteration: true,
+        epochs: 20,
+        batchSize: 128,
         shuffle: true,
         validationSplit: 0.1,
         callbacks: {
             onEpochEnd: (epoch, logs) => {
                 if (logs.loss < 0.001) model.stopTraining = true;
-                if (epoch % 10 === 0) {
+                if (epoch % 5 === 0) {
                     console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)};
                 }
         }
@@ -96,133 +96,167 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
     let completedCount = 0;
     loader.classList.remove('hidden');
+    const meanTempCache = {};
 
-    const sitePromises = allSites.map(async (site, i) => {
-        const statusText = document.getElementById('ai-status-text');
-        const seasonalMean = preFetchedData?.seasonalMean || (await api.getMeanTemperature(site.lat, site.lon));
+    const processSite = (async (site, i) => {
+        try { 
+            const statusText = document.getElementById('ai-status-text');
+            const cacheKey = `${site.lat.toFixed(1)}_${site.lon.toFixed(1)})`;
 
-        let weather, aqi, radiance, siteNDVI, travelTime, moonIsUpNow;
+            let seasonalMean;
+            if (meanTempCache[cacheKey]) {
+                seasonalMean = await meanTempCache[cacheKey];
+            } else {
+                meanTempCache[cacheKey] = api.getMeanTemperature(site.lat, site.lon);
+                seasonalMean = await meanTempCache[cacheKey];
+            }
 
-        travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes[i] : calculateDriveTime(userLoc, site);
-        const maxDrive = (prefs.maxDriveTime || 120);
-        if (travelTime > maxDrive * 1.1) return null;
+            let weather, aqi, radiance, siteNDVI, travelTime, moonIsUpNow;
+
+            travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes[i] : calculateDriveTime(userLoc, site);
+            const maxDrive = (prefs.maxDriveTime || 120);
+            if (travelTime > maxDrive * 1.1) return null;
         
 
-        if(preFetchedData) {
-            weather = preFetchedData.weather;
-            aqi = preFetchedData.aqi;
-            radiance = preFetchedData.radiance || 0;
-            siteNDVI = preFetchedData.ndvi || 0.1;
-            travelTime = preFetchedData.travelTime;
-            moonIsUpNow = preFetchedData.moonIsUp !== undefined ? preFetchedData.moonIsUp : 0;
-            seasonalMean = preFetchedData.seasonalMean;
-        } else {
-           [weather, aqi, radiance, siteNDVI] = await Promise.all([
-                checkWeatherWindow(site, windowStart, windowEnd, prefs),
-                checkAirQuality(site),
-                getRadianceValue(site.lat, site.lon, lightTiles),
-                getNDVI(site.lat, site.lon, vegTiles)
-           ]);
+            if(preFetchedData) {
+                weather = preFetchedData.weather;
+                aqi = preFetchedData.aqi;
+                radiance = preFetchedData.radiance || 0;
+                siteNDVI = preFetchedData.ndvi || 0.1;
+                travelTime = preFetchedData.travelTime;
+                moonIsUpNow = preFetchedData.moonIsUp !== undefined ? preFetchedData.moonIsUp : 0;
+                seasonalMean = preFetchedData.seasonalMean;
+            } else {
+                [weather, aqi, radiance, siteNDVI] = await Promise.all([
+                    checkWeatherWindow(site, windowStart, windowEnd, prefs),
+                    checkAirQuality(site),
+                    getRadianceValue(site.lat, site.lon, lightTiles),
+                    getNDVI(site.lat, site.lon, vegTiles)
+                ]);
 
-            const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
-            moonIsUpNow = moonPos.altitude > 0 ? 1 : 0;
-        }
+                const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
+                moonIsUpNow = moonPos.altitude > 0 ? 1 : 0;
+            }
 
-        completedCount++;
-        statusText.innerText = `🧠 Making Decision... ${Math.round((completedCount / allSites.length) * 100)}%`;
+            const finalSeasonalMean = seasonalMean ?? weather?.avgTemp ?? 50;
 
-        console.log(`Checking ${site.name}: Weather=${weather.success}, AQI=${aqi.success}`);
-
-        const moonIllum = getMoonIllumination(weather.bestTime || new Date());
+            const moonIllum = getMoonIllumination(weather.bestTime || new Date());
+            const effectiveMoonIllum = moonIsUpNow ? moonIllum : 0;
         
-        if (moonIllum > 0.85 && moonIsUpNow) {
-            failureCounts.moon++;
-            return null;
-        }
+            if (moonIllum > 0.85 && moonIsUpNow) {
+                failureCounts.moon++;
+                return null;
+            }
 
-        if (!weather.success || !aqi.success) {
-            const reason = !weather.success ? weather.reason : 'aqi';
-            failureCounts[reason]++;
-            return null;
-        }
+            if (!weather.success || !aqi.success) {
+                const reason = !weather.success ? weather.reason : 'aqi';
+                failureCounts[reason]++;
+                return null;
+            }
 
-        const siteBortle = radianceToBortle(radiance);
-        if (prefs.maxBortle && siteBortle > prefs.maxBortle) return null;
+            const siteBortle = radianceToBortle(radiance);
+            if (prefs.maxBortle && siteBortle > prefs.maxBortle) return null;
 
-        const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
+            const pm25Value = (aqi.hourly && aqi.hourly.pm2_5) ? aqi.hourly.pm2_5[0] || 5 : 5;
             const now = new Date();
             const startOffset = Math.max(0, (new Date(weather.bestTime) - now) / 3600000);
-        
-        const aqiDataForBrain = { ...aqi, pm25: pm25Value };
-
-        const trustFactor = site.trustFactor || 0.5;
+            const aqiDataForBrain = { ...aqi, pm25: pm25Value };
+            const trustFactor = site.trustFactor || 0.5;
 
 
-        const score = tf.tidy(() => {
-            const inputData = normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor, moonIsUpNow, seasonalMean);
-            const inputTensor = tf.tensor2d([inputData], [1, 15]);
-            const prediction = model.predict(inputTensor);
-            console.log("Normalized (The 0-1 values):", inputData);
-            return prediction.dataSync()[0];
-        });
+            const score = tf.tidy(() => {
+                const inputData = normalizeInputs(radiance, site, weather, effectiveMoonIllum, travelTime, prefs, aqiDataForBrain, startOffset, siteNDVI, trustFactor, moonIsUpNow, finalSeasonalMean);
+                const inputTensor = tf.tensor2d([inputData], [1, 15]);
+                const prediction = model.predict(inputTensor);
+                console.log("Normalized (The 0-1 values):", inputData);
+                return prediction.dataSync()[0];
+            });
 
-        console.groupCollapsed(`📊 Brain Audit: ${site.name} (${(score * 100).toFixed(1)}%)`);
-        console.log("Raw Sensor Data:", { radiance, siteNDVI, clouds: weather.avgClouds, temp: weather.avgTemp });
-        console.log("Final AI Score:", score);
-        console.groupEnd();
+            completedCount++;
+            statusText.innerText = `🧠 Making Decision... ${Math.round((completedCount / allSites.length) * 100)}%`;
 
-        const brainStats = {
-            clouds: weather.avgClouds,
-            temp: (prefs.tempUnit === 'celsius') ? (weather.avgTemp * 9/5) + 32 : weather.avgTemp, 
-            pm25: pm25Value
-        };
+            console.log(`Checking ${site.name}: Weather=${weather.success}, AQI=${aqi.success}`);
 
-        const origin = `${userLoc.lat},${userLoc.lon}`;
-        const destination = `${site.lat},${site.lon}`;
+            console.groupCollapsed(`📊 Brain Audit: ${site.name} | Raw Output: ${score.toFixed(6)}`);
+            console.log("Raw Sensor Data:", { radiance, siteNDVI, clouds: weather.avgClouds, temp: weather.avgTemp });
+            console.log("Final AI Score:", score);
+            console.groupEnd();
+
+            const brainStats = {
+                clouds: weather.avgClouds,
+                temp: (prefs.tempUnit === 'celsius') ? (weather.avgTemp * 9/5) + 32 : weather.avgTemp, 
+                pm25: pm25Value
+            };
+
+            const origin = `${userLoc.lat},${userLoc.lon}`;
+            const destination = `${site.lat},${site.lon}`;
 
 
-        console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${score}`);
+            console.log(`🧠 Brain Scoring: ${site.name} | Raw Score: ${score}`);
 
-        const boostedScore = (score * 100).toFixed(1);
+            const boostedScore = (score * 100).toFixed(1);
 
-        console.group(`📊 Data Audit: ${site.name}`);
-        console.log("1. Sensor Raw:", {
-            radiance: radiance,
-            siteNDVI: siteNDVI,
-            clouds: brainStats.clouds,
-            temp: brainStats.temp,
-            moon: moonIllum,
-            travel: travelTime
-        });
-        console.log("3. Final Result:", {
-            rawScore: score,
-            boosted: boostedScore
-        });
-        console.groupEnd();
+            console.group(`📊 Data Audit: ${site.name}`);
+            console.log("1. Sensor Raw:", {
+                radiance: radiance,
+                siteNDVI: siteNDVI,
+                clouds: brainStats.clouds,
+                temp: brainStats.temp,
+                moon: moonIllum,
+                travel: travelTime
+            });
+            console.log("3. Final Result:", {
+                rawScore: score,
+                boosted: boostedScore
+            });
+            console.groupEnd();
 
-        return({
-            ...site,
-            radiance: radiance,
-            ndvi: siteNDVI,
-            bortle: radianceToBortle(radiance),
-            rawScore: score,
-            travelTime: travelTime,
-            bestTime: weather.bestTime,
-            duration: weather.duration,
-            avgTemp: weather.avgTemp,
-            avgClouds: weather.avgClouds,
-            score: 0,
-            mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
-        });
+            return({
+                ...site,
+                radiance: radiance,
+                ndvi: siteNDVI,
+                bortle: radianceToBortle(radiance),
+                rawScore: score,
+                travelTime: travelTime,
+                bestTime: weather.bestTime,
+                duration: weather.duration,
+                avgTemp: weather.avgTemp,
+                avgClouds: weather.avgClouds,
+                score: 0,
+                mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
+            });
+        } catch (err) {
+            console.error(`Error processing ${site.name}:`, err);
+            return null;
+        }
     });
 
-    const results = await Promise.all(sitePromises);
+    const MAX_CONCURRENCY = 5;
+    const results = new Array(allSites.length).fill(null);
+    const queue = [...allSites.entries()];
+
+    async function worker() {
+        while (queue.length > 0) {
+            const [index, site] = queue.shift();
+            const result = await processSite(site, index);
+            results[index] = result;
+        }
+    }
+
+    await Promise.all(Array(Math.min(MAX_CONCURRENCY, allSites.length)).fill(null).map(() => worker()));
+
     const validSites = results.filter(s => s !== null);
 
     if (validSites.length > 0) {
+        const rawScores = validSites.map(s => s.rawScore);
+        const maxRaw = Math.max(...rawScores);
+        const minRaw = Math.min(...rawScores);
+        const range = maxRaw - minRaw;
+
         validSites.forEach(site => {
-            let humanScore = Math.pow(site.rawScore, 0.4) * 100;
-            site.score = Math.min(99.9, humanScore).toFixed(1);
+            let normalizedRel = range > 0 ? (site.rawScore - minRaw) / range: 1.0;
+            let humanScore = 65 + (normalizedRel * 33);
+            site.score = humanScore.toFixed(1);
         });
         validSites.sort((a, b) => b.score - a.score);
     }
