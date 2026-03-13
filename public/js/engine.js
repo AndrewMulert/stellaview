@@ -42,7 +42,7 @@ function calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiSt
 
 export async function findBestSites(date, userLocation, allDarkSites, prefs, isHomeMode = false) {
     const loader = document.getElementById('ai-loader');
-    const statusText = document.getElementById('ai_status-text');
+    const statusText = document.getElementById('ai-status-text');
     const spinner = loader.querySelector(".spinner");
     const weeklyContainer = document.querySelector("#weekly-outlook");
     if (loader) loader.classList.remove('hidden');
@@ -50,11 +50,12 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
     if (weeklyContainer) weeklyContainer.classList.add('hidden');
 
     /*A running talley of why locations may fail to determine the overall reason for failure*/
-    let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0};
+    let failureCounts = { clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0, bortle: 0};
     console.log("Starting engine with", allDarkSites.length, "sites.");
 
     let sitesToQuery = [];
     let isUsingCache = false;
+    let results = [];
 
     const homeLoc = window.currentUser?.preferences?.homeLocation;
     const cachedSites = window.currentUser?.preferences?.cachedNearbySites?.sites;
@@ -124,13 +125,17 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
             vegTiles = (await vegRes.json()).tiles || (await vegRes.json()).available_tiles;
         }
 
-        statusText.innerText = "🗺️ Mapping light pollution tiles...";
+        if (statusText) {
+            statusText.innerText = "🗺️ Mapping light pollution tiles...";
+        } else {
+            console.warn("UI Element 'ai-status-text' not found int he HTML.")
+        }
 
         const results = await Promise.all(sitesToQuery.map(async (site) => {
             const travelTime = calculateDriveTime(userLocation, site);
 
 
-            if (travelTime > (prefs.maxDriveTime * 1.1)){
+            if (travelTime > (prefs.maxDriveTime * 1.25)){
                 console.log(`  -> Filtered: Drive too long (${Math.round(travelTime)} > ${prefs.maxDriveTime})`);
                 return null;
             };
@@ -138,6 +143,8 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
             statusText.innerText = "🛰️ Contacting satellites for weather...";
             const [weatherStatus, aqiStatus, radiance, ndvi] = await Promise.all([checkWeatherWindow(site, startOfNight, windowEndTime, prefs), checkAirQuality(site), isUsingCache ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles), isUsingCache ? Promise.resolve(site.ndvi) : getNDVI(site.lat, site.lon, vegTiles)]);
             console.log(`Site: ${site.name} | Rad: ${radiance} | NDVI: ${ndvi}`);
+
+            const siteBortle = radianceToBortle(radiance);
 
             if (siteBortle > (prefs.maxBortle || 5)){
                 console.log(`  -> Filtered: Too much light pollution (${radiance} > ${prefs.maxBortle})`);
@@ -157,7 +164,6 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
                 console.log(`  => SUCCESS: ${site.name} passed all checks.`);
 
                 const isMoonActuallyVisible = moonDeg > 0;
-                const siteBortle = radianceToBortle(radiance);
 
                 statusText.innerText = "🧠 Brain is calculating the best views...";
                 const score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, aqiStatus, radiance, ndvi, isMoonActuallyVisible);
@@ -273,11 +279,13 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                     const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
                     site.bortle = radianceToBortle(brainResult.rawRadiance);
                     if (brainResult && brainResult.sites && brainResult.sites.length > 0) {
-                        score = brainResult.sites[0].score || 0;
+                        const brainSite = brainResult.sites[0];
+                        score = brainSite.score;
+                        site.bortle = brainSite.bortle;
                         console.log(`AI Score for ${site.name}: ${score}%`);
                     } else {
                         console.log(`🧠 AI Skip during Weekly Outlook: ${site.name}`);
-                        continue;
+                        return [];
                     }
                 } else {
                     score = calculateScore(site, weatherStatus, travelTime, moonIllum, prefs, currentAqiStatus, siteRadiance, siteNDVI, moonIsUpNow);
@@ -451,7 +459,7 @@ export async function checkWeatherWindow(site, start, end, prefs, data = null) {
 
     let bestHour = hours.reduce((prev, curr) => (curr.clouds < prev.clouds ? curr : prev));
 
-    if (bestHour.clouds > 20) {
+    if (bestHour.clouds > 30) {
         console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${bestHour.clouds}%).`);
         return { success: false, reason: 'clouds' };
     }

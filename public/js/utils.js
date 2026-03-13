@@ -106,6 +106,7 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
         let localWeight = 0;
         let skyGlowRadiance = 0;
         let skyGlowWeight = 0;
+        let peakLocalRadiance = 0;
 
         const SEARCH_RADIUS = 12;
 
@@ -121,6 +122,7 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
                     if (distance <= 2) {
                         localRadiance += val;
                         localWeight ++;
+                        if (val > peakLocalRadiance) peakLocalRadiance = val;
                     } else {
                         const weight = 1 / (distance * distance);
                         skyGlowRadiance += val * weight;
@@ -132,8 +134,9 @@ export async function getRadianceValue(lat, lon, manifestTiles) {
 
         const localAvg = localWeight > 0 ? localRadiance / localWeight : 0.01;
         const glowAvg = skyGlowWeight > 0 ? skyGlowRadiance / skyGlowWeight : 0;
+        const adjustedLocal = (peakLocalRadiance > localAvg * 3) ? peakLocalRadiance : localAvg;
 
-        return localAvg + (glowAvg * 0.5);
+        return adjustedLocal + (glowAvg * 0.5);
     } catch (error){
         console.error("Radiance fetch error:", error);
         return 0.01;

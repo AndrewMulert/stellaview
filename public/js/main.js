@@ -58,38 +58,41 @@ async function requestWakeLock() {
 async function initAI() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
+    const MODEL_VERSION = "2.2.4.1_smarter_faster_stronger";
+    const STORE_PATH = "indexeddb://stella-model";
 
     try{
         loader.classList.remove('hidden');
-        const MODEL_VERSION = "2.2.3_personalized_results";
-        const MAX_AGE_MS = 30 * 24 * 60 * 1000;
 
         const savedModels = await tf.io.listModels();
         const metadata = JSON.parse(localStorage.getItem('stella_metadata') || '{}');
         const now = Date.now();
 
-        const isModelValid = savedModels['localstorage://stella-model'] && metadata.version === MODEL_VERSION && (now - (metadata.timestamp || 0)) < MAX_AGE_MS;
+        const modelExists = !!savedModels[STORE_PATH];
+        const isModelValid = modelExists && metadata.version === MODEL_VERSION && (now - (metadata.timestamp || 0)) < (30 * 24 * 60 * 1000);
 
         if (isModelValid) {
-            statusText.innerText = "💾 Loading saved brain from storage...";
-            trainedModel = await tf.loadLayersModel('localstorage://stella-model');
+            statusText.innerText = "💾 Loading brain...";
+            trainedModel = await tf.loadLayersModel(STORE_PATH);
         } else {
-            if (!isModelValid && savedModels['localstorage://stella-model']) {
-                console.log("♻️ Brain is outdated or architecture changed. Wiping old model...");
-                await tf.io.removeModel('localstorage://stella-model');
+            if (modelExists) {
+                console.log("♻️ Wiping old model...");
+                await tf.io.removeModel(STORE_PATH);
             }
-            statusText.innerText = "🎓 Training AI for your device... (This may take 10-20 seconds)";
+            statusText.innerText = `🎓 Training AI...`;
             console.log("🎓 Training a fresh brain...");
             const prefs = await getActivePrefs(window.currentUser);
-            trainedModel = await trainStellaBrain(prefs);
-            await trainedModel.save('localstorage://stella-model');
+            trainedModel = await trainStellaBrain(prefs, (pct) => {
+                statusText.innerText = `🎓 Training AI... ${pct}%`;
+            });
 
+            await trainedModel.save(STORE_PATH);
             localStorage.setItem('stella_metadata', JSON.stringify({
                 version: MODEL_VERSION,
                 timestamp: now
             }));
 
-            statusText.innerText ="⭐ AI is online (Loaded from disk).";
+            statusText.innerText ="⭐ AI Online.";
         }
     } catch (e) {
         console.error("CRITICAL AI ERROR:", e)
@@ -190,7 +193,7 @@ async function runStargazingEngine() {
         }
         await updateUI(fallback, prefs, thisSearchId, true);
     },
-    {timeout: 8000, enableHighAccuracy: false}
+    {timeout: 4000, enableHighAccuracy: false}
 );
 }
 
@@ -478,7 +481,8 @@ const updateUI = async (coords, prefs, sessionId = null) => {
             hot: "You're on fire! Stay indoors and avoid the heat tonight.",
             moon: "The Man on the Moon gives his greetings and illuminates the landscape",
             distance: "The universe is calling, but it's a bit too far of a drive.",
-            aqi: "Smoke and mirrors. The air is too thick for a clear view tonight."
+            aqi: "Smoke and mirrors. The air is too thick for a clear view tonight.",
+            bortle: "Man's hubris outshines even the clearest skies."
         };
         decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
 

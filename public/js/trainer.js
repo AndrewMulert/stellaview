@@ -61,6 +61,7 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         ];
 
         let score = (darknessFactor * 30)
+            + (scenario.trustFactor * 25)
             + (normClouds * 15) 
             + (normMoon * 15)
             + (normTemp * 15)
@@ -68,7 +69,6 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             + (normStartHour * 10)
             + (normNDVI * 15)
             + (normTravel * 10)
-            + (scenario.trustFactor * 15)
             + (normAQI * 5);
 
         score *= moonPenaltyFactor;

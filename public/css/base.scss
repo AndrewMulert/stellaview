@@ -482,6 +482,9 @@ main{
         }
 
         .score{
+            &_best{
+                background-color: $info-best;
+            }
             &_good{
                 background-color: $info-good;
             }
@@ -490,6 +493,9 @@ main{
             }
             &_bad{
                 background-color: $info-bad;
+            }
+            &_terrible{
+                background-color: $info-terrible;
             }
         }
     }

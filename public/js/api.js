@@ -146,7 +146,9 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                 const privateKeywords = ["ranch", "farm", "estate", "residence", "private", "club", "driveway"];
                 if (privateKeywords.some(word => name.includes(word))) return null;
 
-                const isOfficial = /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || tags.leisure === "nature_reserve" || tags.boundary === "protected_area";
+                const isOfficial = /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || 
+                    tags.leisure === "nature_reserve" || 
+                    tags.boundary === "protected_area";
 
                 const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
 
@@ -163,7 +165,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                     lat: el.lat || (el.center ? el.center.lat : null),
                     lon: el.lon || (el.center ? el.center.lon : null),
                     type: tags.leisure || tags.natural || "park",
-                    trustFactor: isOfficial ? 1.0: 0.5
+                    trustFactor: isOfficial ? 1.5: 0.5
                 };
             }).filter(site => site && site.lat && site.lon);
 
@@ -175,7 +177,14 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                 setLocalCache(geoCache);
             }
 
-            return finalResults;
+            const sortedResults = finalResults.sort((a, b) => {
+                if (b.trustFactor !== a.trustFactor) return b.trustFactor - a.trustFactor;
+                if (a.name === "Remote Dark Spot" && b.name !== "Remote Dark Spot") return 1;
+                if (a.name !== "Remote Dark Spot" && b.name === "Remote Dark Spot") return -1;
+                return 0;
+            });
+        
+        return sortedResults;
 
         } catch (e) {
             console.error(`Attempt ${i+1} failed:`, e);
