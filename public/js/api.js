@@ -204,6 +204,7 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
                     if (spinner) spinner.classList.remove('hidden');
                 }, 3000);
                 console.error("❌ OSM Fetch failed after retries:", e);
+                statusText.innerText = "⚠️ Weather Call Failed. Try Again";
                 return [];
             }
         }

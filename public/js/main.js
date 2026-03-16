@@ -58,10 +58,19 @@ async function requestWakeLock() {
 async function initAI() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
+    const siteCard = document.querySelector('site-card');
+    const dropDown = document.querySelector('.drop-down-info');
     const MODEL_VERSION = "2.2.4.3_cleanup";
     const STORE_PATH = "indexeddb://stella-model";
 
     try{
+        if (siteCard) {
+            siteCard.classList.add('hidden');
+            siteCard.innerText = "";
+        }
+        if (dropDown) {
+            dropDown.classList.add('hidden');
+        }
         loader.classList.remove('hidden');
 
         const savedModels = await tf.io.listModels();
@@ -207,6 +216,13 @@ function displayResults(sites, prefs) {
     const container = document.querySelector("#results-container");
     if (!container) return;
 
+    const dropDown = document.querySelector('.drop-down-info');
+    if (sites.length > 0 && dropDown) {
+        dropDown.classList.remove('hidden');
+    } else if (dropDown) {
+        dropDown.classList.add('hidden');
+    }
+
     container.classList.add("hidden");
     container.innerHTML = "";
 
@@ -312,12 +328,17 @@ async function handleSearch() {
     activeAbortController = new AbortController();
     
     const decisionSpan = document.querySelector("#hero_decision");
-    const featuredSpan = document.querySelector("#feature_container");
-    const loader = document.getElementById('ai-loader');
+    const featuredSpan = document.querySelector("#feature-container");
+    const loader = document.querySelector('#ai-loader');
     const statusText = document.getElementById('ai-status-text');
     const spinner = loader.querySelector(".spinner");
     const weeklyContainer = document.querySelector("#weekly_outlook");
     const container = document.querySelector("#results-container");
+    const dropDown = document.querySelector('.drop-down-info');
+
+    if (dropDown) {
+        dropDown.classList.add('hidden');
+    }
 
     if (decisionSpan) {
         decisionSpan.textContent = "The universe is calling; let’s find where it’s clearest.";
@@ -373,6 +394,8 @@ async function handleSearch() {
     } catch (err) {
         if (err.name === 'AbortError') console.log("Old search aborted.");
         else console.error("Search failed:", err);
+        const statusText = document.getElementById('ai-status-text');
+        statusText.innerText = "⚠️ Search Failed. Try Again";
     }
 }
 
@@ -579,6 +602,7 @@ async function handleNoResults(topFailure, coords, allSites, prefs) {
     const weeklyContainer = document.querySelector("#weekly_outlook");
     const statusText = document.getElementById('ai-status-text');
     const loader = document.getElementById('ai-loader');
+    const dropDown = document.querySelector('.drop-down-info');
 
     const messages = {
         clouds: "Hazy vision. The stars continue their dance beyond the veil.",
@@ -595,11 +619,27 @@ async function handleNoResults(topFailure, coords, allSites, prefs) {
 
     if (weeklyContainer) {
         weeklyContainer.classList.remove('hidden');
-        statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week..."
+
+        const dropDown = document.querySelector('.drop-down-info');
+
+        statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week...";
+
 
         const weeklyData = await findWeeklyOutlook(coords, allSites, prefs, trainedModel);
-        renderWeeklyOutlook(weeklyData, prefs);
-        statusText.innerText = "✅ Weekly Outlook Updated"
+        if (weeklyData && weeklyData.length > 0) {
+            weeklyContainer.classList.remove('hidden');
+            if (dropDown) {
+                dropDown.classList.remove('hidden');
+            }
+            renderWeeklyOutlook(weeklyData, prefs);
+            statusText.innerText = "✅ Weekly Outlook Updated";
+        } else {
+            weeklyContainer.classList.add('hidden');
+            if (dropDown) {
+                dropDown.classList.add('hidden');
+            }
+            statusText.innerText = "☁️ No good views all week.";
+        }
     }
 
     const spinner = loader.querySelector(".spinner");

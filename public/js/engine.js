@@ -222,8 +222,10 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
     const vegTiles = (await vegRes.json()).tiles;
     const lightTiles = (await lightRes.json()).tiles;
 
+    const progressTracker = { completed: 0 };
+    const totalWorkUnits = sitesToProcess.length * 7;
 
-    const processSite = async (site) => {
+    const processSite = async (site, siteIndex, totalSites) => {
         try {
             const [weatherData, aqiData, siteNDVI, siteRadiance] = await Promise.all([api.getWeatherData(site.lat, site.lon, 9),api.getAirQuality(site.lat, site.lon, 7), isCacheRelevant ? Promise.resolve(site.vegetation || 0) : getNDVI(site.lat, site.lon, vegTiles), (isCacheRelevant && site.radiance) ? Promise.resolve(site.radiance) : getRadianceValue(site.lat, site.lon, lightTiles)]);
             
@@ -282,7 +284,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
                 let score;
 
                 if (trainedModel) {
-                    const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched);
+                    const brainContext = { mode: 'weekly', siteIndex: siteIndex, totalSites: totalSites * 7, dayIndex: i , tracker: progressTracker, totalWorkUnits: totalWorkUnits};
+                    const brainResult = await predictWithBrain(trainedModel, [site], userLoc, prefs, prefetched, brainContext);
                     const brainSite = brainResult?.sites?.[0];
                     if (brainSite) {
                         score = brainSite.score;
@@ -321,6 +324,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
         } catch (e) {
             console.error(`Weekly fetch failed for ${site.name}`, e);
             return [];
+        } finally {
+            progressTracker.completed++;
         }
     };
 
@@ -329,7 +334,9 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
     for (let i = 0; i < sitesToProcess.length; i += batchSize) {
         const batch = sitesToProcess.slice(i, i + batchSize);
-        const batchPromises = batch.map(site => processSite(site));
+        const batchPromises = batch.map((site, index) => 
+            processSite(site, i + index, sitesToProcess.length)
+        );
         const batchResults = await Promise.all(batchPromises);
         resultsArray.push(...batchResults);
         

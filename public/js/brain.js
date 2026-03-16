@@ -60,12 +60,11 @@ export async function trainStellaBrain(prefs, onProgress) {
     return model;
 }
 
-export async function predictWithBrain(model, allSites, userLoc, prefs, preFetchedData = null) {
+export async function predictWithBrain(model, allSites, userLoc, prefs, preFetchedData = null, context = null) {
     let failureCounts = {clouds: 0, cold: 0, hot: 0, moon: 0, aqi: 0, bortle: 0, distance: 0};
     const statusText = document.getElementById('ai-status-text');
     const loader = document.getElementById('ai-loader');
 
-    if (statusText) statusText.innerText = "🌌 Scanning the stars...";
     if (loader) loader.classList.remove('hidden');
 
     const lat = userLoc?.lat || 44.4605;
@@ -141,6 +140,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     }
 
     let completedCount = 0;
+    const tracker = (context && context.tracker) ? context.tracker : null;
     loader.classList.remove('hidden');
 
     const validSitesData = [];
@@ -189,10 +189,25 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         while (queue.length > 0) {
             const [index, site] = queue.shift();
             await processSite(site, index);
-            completedCount++;
+            
+            if (tracker) {
+                tracker.completed++
+            } else {
+                completedCount++;
+            }
 
-            const progress = Math.round((completedCount / semiFilteredSites.length) * 100);
-            if (statusText) statusText.innerText = `🧠 Making Decision... ${progress}%`;
+            if (statusText) {
+                let overallProgress = 0;
+                if (context && context.mode === 'weekly') {
+                    const current = tracker ? tracker.completed : completedCount;
+                    const total = context.totalSites || 1;
+                    overallProgress = Math.min(Math.round((current / total) * 100), 100);
+                    statusText.innerText = `🗓️ Building Weekly Outlook... ${overallProgress}%`;
+                } else {
+                    overallProgress = Math.round((completedCount / semiFilteredSites.length) * 100);
+                    statusText.innerText = `🧠 Making Decision... ${overallProgress}%`;
+                }
+            } 
             
         }
     }
