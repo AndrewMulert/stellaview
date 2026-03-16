@@ -40,11 +40,12 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         const tempDeviation = (scenario.temp - scenario.seasonalMean) / 30;
         const mockUserDarknessLimit = Math.random() * 0.7 + 0.3;
         
+        let cloudScoreWeight = normClouds * 35;
+
         let moonPenaltyFactor = 1.0;
         if (scenario.isMoonUp === 1) {
            moonPenaltyFactor = Math.pow(1 - scenario.illumination, 3);
         }
-
 
         let normNDVI = Math.max(0.1, 1.0 - Math.abs(scenario.ndvi - 0.4) * 2); 
         normNDVI = Math.max(0.1, normNDVI);
@@ -62,7 +63,7 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
 
         let score = (darknessFactor * 30)
             + (scenario.trustFactor * 25)
-            + (normClouds * 15) 
+            + cloudScoreWeight
             + (normMoon * 15)
             + (normTemp * 15)
             + (normDuration * 10)
@@ -75,13 +76,13 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
 
         if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.1;
         if (scenario.temp < minTemp) score *= 0.1;
-        if (scenario.clouds > 30) score *=0.2;
-        if (scenario.clouds > 70 || scenario.pm25 > 100) score = 0;
+        if (scenario.clouds > 20) score *=0.3;
+        if (scenario.clouds > 50) score *=0.1;
+        if (scenario.clouds > 75 || scenario.pm25 > 100) score = 0;
         if (scenario.trustFactor < 0.6 ) score *= 0.4;
 
         if (scenario.travelTime > maxDrive) {
-            const overageRatio = scenario.travelTime / maxDrive;
-            score *= Math.max(0, 1.2 - overageRatio);
+            score *= 0.7;
         }
 
         if (darknessFactor < mockUserDarknessLimit) {

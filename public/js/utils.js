@@ -6,7 +6,7 @@ export function calculateDriveTime(loc1, loc2) {
     const lat1 = loc1.lat ?? loc1.latitude;
     const lon1 = loc1.lon ?? loc1.longitude;
     const lat2 = loc2.lat ?? loc2.latitude;
-    const lon2 = lon2.lon ?? loc2.longitude;
+    const lon2 = loc2.lon ?? loc2.longitude;
 
     if (lat1 === undefined || lat2 === undefined) return 0;
 

@@ -19,20 +19,19 @@ initTF();
 const BRAIN_CACHE = new Map();
 
 export async function trainStellaBrain(prefs, onProgress) {
-    const totalEpochs = 20;
-    const data = generateMockHistory(450, prefs);
+    const totalEpochs = 30;
+    const data = generateMockHistory(300, prefs);
 
     const inputs = tf.tensor2d(data.map(d => d.input));
     const outputs = tf.tensor2d(data.map(d => d.output));
 
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 32, inputShape: [15], activation: 'relu'}));
-    model.add(tf.layers.dropout({ rate: 0.1 }));
-    model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 16, inputShape: [15], activation: 'relu'}));
+    model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
     model.compile({
-        optimizer: tf.train.adam(0.02),
+        optimizer: tf.train.adam(0.01),
         loss: 'meanSquaredError'
     });
 
@@ -41,15 +40,16 @@ export async function trainStellaBrain(prefs, onProgress) {
         epochs: totalEpochs,
         batchSize: 32,
         shuffle: true,
-        validationSplit: 0.1,
         callbacks: {
-            onEpochEnd: (epoch, logs) => {
+            onEpochEnd: async (epoch, logs) => {
                 const percent = Math.round(((epoch + 1) / totalEpochs) * 100);
                 if (onProgress) onProgress(percent);
-                if (logs.loss < 0.001) model.stopTraining = true;
-                if (epoch % 5 === 0) {
-                    console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`)};
-                }
+                if (logs.loss < 0.005) model.stopTraining = true;
+                if (epoch % 10 === 0) {
+                    console.log(`Epoch ${epoch}: Loss = ${logs.loss.toFixed(4)}, Time = ${new Date()}`);
+                    await tf.nextFrame();
+                };
+            }
         }
     });
 
@@ -177,7 +177,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const pm25 = data.aqi.hourly?.pm2_5?.[0] || 5;
             const startOffset = Math.max(0, (new Date(data.weather.bestTime) - new Date()) / 3600000);
 
-            validSitesData.push({ originalIndex: i, site, weather: data.weather, travelTime: data.travelTime, inputData: normalizeInputs(data.radiance, site, data.weather, (data.moonIsUpNow ? moonIllum : 0), data.travelTime, prefs, { ...data.aqi, pm25 }, startOffset, data.siteNDVI, site.trustFactor || 0.5, data.moonIsUpNow, (data.seasonalMean ?? data.weather.avgTemp ?? 50))});
+            validSitesData.push({ originalIndex: i, site, duration: data.weather.duration, weather: data.weather, travelTime: data.travelTime, inputData: normalizeInputs(data.radiance, site, data.weather, (data.moonIsUpNow ? moonIllum : 0), data.travelTime, prefs, { ...data.aqi, pm25 }, startOffset, data.siteNDVI, site.trustFactor || 0.5, data.moonIsUpNow, (data.seasonalMean ?? data.weather.avgTemp ?? 50))});
         } catch (err){
             failureCounts.clouds++;
         }
@@ -206,7 +206,8 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
         const scores = tf.tidy(() => {
             const tensorInputs = tf.tensor2d(validSitesData.map(d => d.inputData), [validSitesData.length, 15]);
-            return model.predict(tensorInputs).dataSync();
+            const predictions = model.predict(tensorInputs);
+            return predictions.dataSync();
         });
 
         validSites = validSitesData.map((d, i) => ({
@@ -216,6 +217,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             rawScore: scores[i],
             travelTime: d.travelTime,
             bestTime: new Date(d.weather.bestTime),
+            duration: d.duration,
             avgTemp: d.weather.avgTemp,
             avgClouds: d.weather.avgClouds,
             mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${d.site.lat},${d.site.lon}`

@@ -58,7 +58,7 @@ async function requestWakeLock() {
 async function initAI() {
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
-    const MODEL_VERSION = "2.2.4.1_smarter_faster_stronger";
+    const MODEL_VERSION = "2.2.4.3_cleanup";
     const STORE_PATH = "indexeddb://stella-model";
 
     try{
@@ -79,6 +79,9 @@ async function initAI() {
                 console.log("♻️ Wiping old model...");
                 await tf.io.removeModel(STORE_PATH);
             }
+            const originalBackend = tf.getBackend();
+            await tf.setBackend('cpu');
+
             statusText.innerText = `🎓 Training AI...`;
             console.log("🎓 Training a fresh brain...");
             const prefs = await getActivePrefs(window.currentUser);
@@ -87,6 +90,9 @@ async function initAI() {
             });
 
             await trainedModel.save(STORE_PATH);
+
+            await tf.setBackend(originalBackend);
+
             localStorage.setItem('stella_metadata', JSON.stringify({
                 version: MODEL_VERSION,
                 timestamp: now
@@ -378,37 +384,30 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     const loader = document.getElementById('ai-loader');
     const statusText = document.getElementById('ai-status-text');
-    const weeklyContainer = document.querySelector("#weekly_outlook");
+    const decisionSpan = document.querySelector('#hero_decision')
+    const weeklyContainer = document.querySelector('#weekly_outlook');
 
     loader.classList.remove('hidden');
     statusText.innerText = "🔦 Looking for Stargazing Sites...";
 
-    console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
-    const date = new Date();
-
     const driveMinutes = prefs.maxDriveTime || 60;
     const searchRadiusKM = (driveMinutes / 60) * 45 * 1.60934;
+
     const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, searchRadiusKM);
+
+    console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
 
     if (sessionId !== null && sessionId !== currentSearchId) return;
 
     if (!allSites || allSites.length === 0) {
-        const statusText = document.getElementById('ai-status-text');
-        const spinner = loader.querySelector(".spinner");
-        if (spinner) spinner.classList.add('hidden');
-        if (statusText){
-            statusText.innerText = "🔭 No sites found or servers busy. Retrying in 30s...";
-        };
-
-        setTimeout(() => {
-            if (loader) loader.classList.add('hidden');
-        }, 5000);
-
+        handleNoResults("bortle", coords, [], prefs);
         return;
-    }
+    };
+
     console.log(`Dynamic Search: Found ${allSites.length} potential sites.`);
 
     let results;
+    const date = new Date();
 
     if (trainedModel) {
         statusText.innerText = "🧠 Making Decision...";
@@ -422,78 +421,43 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     const { sites, topFailure} = results;
 
+    if (!sites || sites.length === 0) {
+        console.warn("No sites found in results object.");
+        handleNoResults(topFailure, coords, allSites, prefs);
+        return;
+    }
+
     const sorted = sites.sort((a, b) => b.score - a.score);
-    const topSite = sorted[0];
-    console.log("Debug - Top Site Time:", topSite.name, topSite.bestTime);
+    const topSite = sorted.length > 0 ? sorted[0] : null;
     const otherSites = sorted.slice(1, 5);
 
     const container = document.querySelector("#results-container");
     const featuredContainer = document.querySelector("#feature-container");
+
     if (container){
         container.innerHTML = "";
         container.classList.add('hidden');
     }
-    
     if (featuredContainer) featuredContainer.innerHTML = "";
 
-    if (sites.length > 0) {
-        decisionSpan.textContent = "Tonight is a good night for stargazing.";
+    decisionSpan.textContent = "Tonight is a good night for stargazing.";
 
-        if (featuredContainer && topSite) {
-            renderFeaturedSite(topSite, featuredContainer);
-        }
-
-        displayResults(otherSites, prefs);
-
-        if (weeklyContainer) weeklyContainer.classList.add('hidden');
-
-        statusText.innerText = "✨ Clear skies found!";
-
-        const spinner = loader.querySelector(".spinner");
-        if (spinner) spinner.classList.add('hidden');
-
-        setTimeout(() => {
-            loader.classList.add('hidden')
-
-            if (spinner) spinner.classList.remove('hidden');
-        }, 3000);
-
-        syncSearchResults(coords, sites);
-    } else {
-        const messages = {
-            clouds: "Hazy vision. The stars continue their dance beyond the veil.",
-            cold: "Don't become a popsicle! Save the view for a warmer day",
-            hot: "You're on fire! Stay indoors and avoid the heat tonight.",
-            moon: "The Man on the Moon gives his greetings and illuminates the landscape",
-            distance: "The universe is calling, but it's a bit too far of a drive.",
-            aqi: "Smoke and mirrors. The air is too thick for a clear view tonight.",
-            bortle: "Man's hubris outshines even the clearest skies."
-        };
-        decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
-
-        console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
-
-        
-        if (weeklyContainer) weeklyContainer.classList.remove('hidden');
-
-        statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week...";
-
-        const shortlisted = allSites;
-
-        const weeklyData = await findWeeklyOutlook(coords, shortlisted, prefs, trainedModel);
-        renderWeeklyOutlook(weeklyData, prefs);
-
-        statusText.innerText = "✅ Weekly Outlook Updated";
-
-        const spinner = loader.querySelector(".spinner");
-        if (spinner) spinner.classList.add('hidden');
-
-        setTimeout(() => {
-            loader.classList.add('hidden')
-
-            if (spinner) spinner.classList.remove('hidden');
-        }, 3000);
+    if (featuredContainer && topSite) {
+        renderFeaturedSite(topSite, featuredContainer);
     }
+    displayResults(otherSites, prefs);
+
+    if (weeklyContainer) weeklyContainer.classList.add('hidden');
+    statusText.innerText = "✨ Clear skies found!";
+
+    const spinner = loader.querySelector(".spinner");
+    if (spinner) spinner.classList.add('hidden');
+    setTimeout(() => {
+        loader.classList.add('hidden')
+        if (spinner) spinner.classList.remove('hidden');
+    }, 3000);
+
+    syncSearchResults(coords, sites);
 };
 
 function renderFeaturedSite(site, container) {
@@ -608,6 +572,42 @@ async function syncSearchResults(coords, sites) {
     } catch (err) {
         console.error("Discovery sync failed:", err);
     }
+}
+
+async function handleNoResults(topFailure, coords, allSites, prefs) {
+    const decisionSpan = document.querySelector("#hero_decision");
+    const weeklyContainer = document.querySelector("#weekly_outlook");
+    const statusText = document.getElementById('ai-status-text');
+    const loader = document.getElementById('ai-loader');
+
+    const messages = {
+        clouds: "Hazy vision. The stars continue their dance beyond the veil.",
+        cold: "Don't become a popsicle! Save the view for a warmer day",
+        hot: "You're on fire! Stay indoors and avoid the heat tonight.",
+        moon: "The Man on the Moon gives his greetings and illuminates the landscape",
+        distance: "The universe is calling, but it's a bit too far of a drive.",
+        aqi: "Smoke and mirrors. The air is too thick for a clear view tonight.",
+        bortle: "Man's hubris outshines even the clearest skies."
+    };
+
+    decisionSpan.textContent = messages[topFailure] || "Must have forgotten to take the lens cap off, can't get a prediction";
+    console.warn(`Engine finished: 0 sites found. Primary Blocker: ${topFailure}`);
+
+    if (weeklyContainer) {
+        weeklyContainer.classList.remove('hidden');
+        statusText.innerText = "🗓️ Tonight's a miss. Checking the rest of the week..."
+
+        const weeklyData = await findWeeklyOutlook(coords, allSites, prefs, trainedModel);
+        renderWeeklyOutlook(weeklyData, prefs);
+        statusText.innerText = "✅ Weekly Outlook Updated"
+    }
+
+    const spinner = loader.querySelector(".spinner");
+    if (spinner) spinner.classList.add('hidden');
+    setTimeout(() => {
+        loader.classList.add('hidden'); 
+        if (spinner) spinner.classList.remove('hidden');
+    }, 3000);
 }
 
 document.addEventListener('click', (e) => {
