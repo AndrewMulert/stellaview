@@ -205,27 +205,21 @@ function displayResults(sites, prefs) {
     container.innerHTML = "";
 
     sites.forEach(site => {
-        let rawDate = site.bestTime;
-        let targetArrival;
+        const arrivalDate = new Date(site.bestTime);
 
-        if (rawDate instanceof Date) {
-            targetArrival = rawDate;
-        } else if (typeof rawDate === "string") {
-            const formatted = rawDate.includes('T') ? rawDate : rawDate.replace(' ', 'T') + 'Z';
-            targetArrival = new Date(formatted);
-        } else {
-            targetArrival = new Date();
+        if (isNaN(arrivalDate.getTime())) {
+            console.warn (`Skipping ${site.name}: Invalid bestTime`);
+            return;
         }
 
-        const driveTime = Math.round(site.travelTime || 0);
-
-        const leaveDate = new Date(targetArrival.getTime() - (driveTime) * 60000);
+        const driveTime = (typeof site.travelTime === 'number' && !isNaN(site.travelTime)) ? Math.round(site.travelTime) : 0;
+        const leaveDate = new Date(arrivalDate.getTime() - (driveTime) * 60000);
 
         const cloudVal = (site.avgClouds !== undefined && site.avgClouds !== null) ? Math.round(site.avgClouds) : '--';
         const tempDisplay = (site.avgTemp !== undefined && site.avgTemp !== null) ? Math.round(site.avgTemp) : '--';
 
         const timeOptions = {hour: 'numeric', minute: '2-digit', hour12: true};
-        const viewingStr = targetArrival.toLocaleTimeString([], timeOptions);
+        const viewingStr = arrivalDate.toLocaleTimeString([], timeOptions);
         const leaveStr = leaveDate.toLocaleTimeString([], timeOptions);
 
         let scoreMessage = "";
@@ -288,16 +282,6 @@ function displayResults(sites, prefs) {
         `;
         container.classList.remove("hidden");
         container.appendChild(card);
-    });
-    
-    sites.forEach(site => {
-        if (site.bestTime && !isNaN(new Date(site.bestTime))) {
-            const leaveTime = new Date(new Date(site.bestTime).getTime() - (site.travelTime * 60000));
-            const formattedLeave = leaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            console.log(`✅ Suggestion: Leave for ${site.name} at ${formattedLeave}`);
-        } else {
-            console.warn(`skipping time log for ${site.name}: bestTime missing or invalid.`);
-        }
     });
 };
 
@@ -440,6 +424,7 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
     const sorted = sites.sort((a, b) => b.score - a.score);
     const topSite = sorted[0];
+    console.log("Debug - Top Site Time:", topSite.name, topSite.bestTime);
     const otherSites = sorted.slice(1, 5);
 
     const container = document.querySelector("#results-container");
@@ -512,21 +497,16 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 };
 
 function renderFeaturedSite(site, container) {
-    let rawDate = site.bestTime;
-    let targetArrival;
+    let targetArrival = new Date(site.bestTime);
 
-    if (rawDate instanceof Date) {
-        targetArrival = rawDate;
-    } else if (typeof rawDate === "string") {
-        const formatted = rawDate.includes('T') ? rawDate : rawDate.replace(' ', 'T') + 'Z';
-        targetArrival = new Date(formatted);
-    } else {
+    if(isNaN(targetArrival.getTime())) {
+        console.error("Critical: Could not parse date for site:", site.name, site.bestTime);
         targetArrival = new Date();
     }
 
-    const driveTime = Math.round(site.travelTime || 0);
+    const driveTime = (typeof site.travelTime === 'number' && !isNaN(site.travelTime)) ? Math.round(site.travelTime) : 0;
 
-    const leaveDate = new Date(targetArrival.getTime() - (driveTime) * 60000);
+    const leaveDate = new Date(targetArrival.getTime() - (driveTime * 60000));
 
     const cloudVal = (site.avgClouds !== undefined && site.avgClouds !== null) ? Math.round(site.avgClouds) : '--';
     const tempDisplay = (site.avgTemp !== undefined && site.avgTemp !== null) ? Math.round(site.avgTemp) : '--';

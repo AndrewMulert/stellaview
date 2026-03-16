@@ -1,10 +1,19 @@
 import * as api from "./api.js";
 
 export function calculateDriveTime(loc1, loc2) {
+    if (!loc1 || !loc2) return 0;
+    
+    const lat1 = loc1.lat ?? loc1.latitude;
+    const lon1 = loc1.lon ?? loc1.longitude;
+    const lat2 = loc2.lat ?? loc2.latitude;
+    const lon2 = lon2.lon ?? loc2.longitude;
+
+    if (lat1 === undefined || lat2 === undefined) return 0;
+
     const R = 3958.8;
-    const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
-    const dLon = (loc2.lon - loc1.lon) * Math.PI /180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI /180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distanceMiles = R * c;
 

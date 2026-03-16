@@ -65,8 +65,12 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const statusText = document.getElementById('ai-status-text');
     const loader = document.getElementById('ai-loader');
 
+    if (statusText) statusText.innerText = "🌌 Scanning the stars...";
+    if (loader) loader.classList.remove('hidden');
+
     const lat = userLoc?.lat || 44.4605;
     const lon = userLoc?.lon || -110.8281;
+
     const sunTimes = SunCalc.getTimes(new Date(), lat, lon);
     const astroDusk = sunTimes.astronomicalDusk ? new Date(sunTimes.astronomicalDusk) : new Date(new Date().setHours(20, 0, 0, 0));
     let windowStart = new Date(Math.max(new Date(), astroDusk.getTime()));
@@ -98,7 +102,6 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
     console.log(`🌌 Search Window: ${windowStart.toLocaleTimeString()} to ${windowEnd.toLocaleTimeString()}`);
 
-    statusText.innerText ="📡 Fetching regional climate data...";
     const regionalMeanTemp = await api.getMeanTemperature(lat, lon);
 
     let lightTiles = null, vegTiles = null, roadTimes = null;
@@ -140,18 +143,16 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     let completedCount = 0;
     loader.classList.remove('hidden');
 
-    const lats = allSites.map(s => s.lat).join(',');
-    const lons = allSites.map(s => s.lon).join(',');
+    const validSitesData = [];
 
     const processSite = (async (site, i) => {
-        await new Promise(r => setTimeout(r, i * 15));
         const siteKey = `${site.lat.toFixed(2)}_${site.lon.toFixed(2)}_${hourKey}`;
         let data;
 
-        if (BRAIN_CACHE.has(siteKey)) {
-            data = BRAIN_CACHE.get(siteKey);
-        } else {
-            try {
+        try {
+            if (BRAIN_CACHE.has(siteKey)) {
+                data = BRAIN_CACHE.get(siteKey);
+            } else {
                 const [weather, aqi, radiance, siteNDVI] = await Promise.all([
                     checkWeatherWindow(site, windowStart, windowEnd, prefs),
                     checkAirQuality(site),
@@ -164,85 +165,69 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
                 data = { weather, aqi, radiance, siteNDVI, travelTime, seasonalMean: regionalMeanTemp, moonIsUpNow: moonPos.altitude > 0 ? 1 : 0};
                 BRAIN_CACHE.set(siteKey, data);
-            } catch (err) {
-                failureCounts.clouds++
-                return null;
             }
+
+            if (!data.weather.success || (data.travelTime > (prefs.maxDriveTime || 120) * 1.1)) {
+                const reason = !data.weather.success ? data.weather.reason : 'distance';
+                failureCounts[reason]++;
+                return;
+            }
+
+            const moonIllum = getMoonIllumination(data.weather.bestTime || new Date());
+            const pm25 = data.aqi.hourly?.pm2_5?.[0] || 5;
+            const startOffset = Math.max(0, (new Date(data.weather.bestTime) - new Date()) / 3600000);
+
+            validSitesData.push({ originalIndex: i, site, weather: data.weather, travelTime: data.travelTime, inputData: normalizeInputs(data.radiance, site, data.weather, (data.moonIsUpNow ? moonIllum : 0), data.travelTime, prefs, { ...data.aqi, pm25 }, startOffset, data.siteNDVI, site.trustFactor || 0.5, data.moonIsUpNow, (data.seasonalMean ?? data.weather.avgTemp ?? 50))});
+        } catch (err){
+            failureCounts.clouds++;
         }
-
-        const { weather, aqi, radiance, siteNDVI, travelTime, seasonalMean, moonIsUpNow } = data;
-
-        const maxDrive = (prefs.maxDriveTime || 120);
-        if (travelTime > maxDrive * 1.1) {
-            failureCounts.distance++;
-            return null;
-        };
-
-        const siteBortle = radianceToBortle(radiance);
-        if (prefs.maxBortle && siteBortle > prefs.maxBortle) {
-            failureCounts.bortle++;
-            return null
-        };
-
-        const moonIllum = getMoonIllumination(weather.bestTime || new Date());
-        if (moonIllum > 0.85 && moonIsUpNow) { failureCounts.moon++; return null; }
-        
-        if (!weather.success || !aqi.success) {
-            const reason = !weather.success ? weather.reason: 'aqi';
-            if (failureCounts[reason] !== undefined) failureCounts[reason]++;
-            return null;
-        }
-
-        const score = tf.tidy(() => {
-            const pm25 = aqi.hourly?.pm2_5?.[0] || 5;
-            const startOffset = Math.max(0, (new Date(weather.bestTime) - new Date()) / 3600000);
-            const inputData = normalizeInputs( radiance, site, weather, (moonIsUpNow ? moonIllum : 0), 
-                travelTime, prefs, { ...aqi, pm25 }, 
-                startOffset, siteNDVI, site.trustFactor || 0.5, 
-                moonIsUpNow, (seasonalMean ?? weather.avgTemp ?? 50)
-            );
-            return model.predict(tf.tensor2d([inputData], [1, 15])).dataSync()[0];
-        });
-
-        return {
-            ...site,
-            radiance, siteNDVI, rawScore: score, travelTime,
-            bestTime: weather.bestTime,
-            avgTemp: weather.avgTemp, 
-            avgClouds: weather.avgClouds,
-            mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${site.lat},${site.lon}`
-        };
     });
 
-    const MAX_CONCURRENCY = 3;
-    const results = new Array(allSites.length).fill(null);
     const queue = [...semiFilteredSites.entries()];
 
     async function worker() {
         while (queue.length > 0) {
             const [index, site] = queue.shift();
-            const result = await processSite(site, index);
-            results[index] = result;
-
+            await processSite(site, index);
             completedCount++;
+
             const progress = Math.round((completedCount / semiFilteredSites.length) * 100);
-            statusText.innerText = `🧠 Making Decision... ${progress}%`;
+            if (statusText) statusText.innerText = `🧠 Making Decision... ${progress}%`;
             
         }
     }
 
-    await Promise.all(Array(Math.min(MAX_CONCURRENCY, allSites.length)).fill(null).map(() => worker()));
+    await Promise.all(Array(Math.min(5, semiFilteredSites.length)).fill(null).map(() => worker()));
 
-    const validSites = results.filter(s => s !== null);
+    let validSites = [];
 
-    if (validSites.length > 0) {
+    if (validSitesData.length > 0) {
+        validSitesData.sort((a, b) => a.originalIndex - b.originalIndex);
+
+        const scores = tf.tidy(() => {
+            const tensorInputs = tf.tensor2d(validSitesData.map(d => d.inputData), [validSitesData.length, 15]);
+            return model.predict(tensorInputs).dataSync();
+        });
+
+        validSites = validSitesData.map((d, i) => ({
+            ...d.site,
+            radiance: d.radiance,
+            siteNDVI: d.siteNDVI,
+            rawScore: scores[i],
+            travelTime: d.travelTime,
+            bestTime: new Date(d.weather.bestTime),
+            avgTemp: d.weather.avgTemp,
+            avgClouds: d.weather.avgClouds,
+            mapUrl: `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${d.site.lat},${d.site.lon}`
+        }));
+
         const rawScores = validSites.map(s => s.rawScore);
         const maxRaw = Math.max(...rawScores);
         const minRaw = Math.min(...rawScores);
         const range = maxRaw - minRaw;
 
         validSites.forEach(site => {
-            let normalizedRel = range > 0 ? (site.rawScore - minRaw) / range: 1.0;
+            let normalizedRel = range > 0 ? (site.rawScore - minRaw) / range : 1.0;
             let humanScore = 65 + (normalizedRel * 33);
             site.score = humanScore.toFixed(1);
         });
