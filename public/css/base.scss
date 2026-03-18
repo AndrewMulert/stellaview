@@ -101,11 +101,13 @@ main{
 }
 
 .hero{
-    background-image: linear-gradient($medium-secondary, $dark-secondary);
-    background-color: $dark-secondary;
+    background-image: linear-gradient(rgb(0, 133, 113, 0.5), rgb(0, 70, 77, 0.5));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 40px;
     padding: 15px;
     margin: 10px;
-    border-radius: 40px;
     width: 100%;
     max-width: 345px;
     height: 100%;
@@ -170,8 +172,7 @@ main{
     }
 
     &_overlay{
-        background-image: linear-gradient(rgba(53, 53, 53, 0.7), rgba(21, 21, 21, 0.8));
-        background-color: rgba(53, 53, 53, 0.7);
+        background-image: linear-gradient(rgba(53, 53, 53, 0.5), rgba(21, 21, 21, 0.5));
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
