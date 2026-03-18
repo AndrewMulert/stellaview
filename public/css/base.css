@@ -4,7 +4,7 @@ body {
   isolation: isolate;
 }
 
-h1, h2, h3, h4, p, input, a, span, button {
+h1, h2, h3, h4, p, input, a, span, button, label, textarea {
   font-family: "Google Sans Flex", "Arial";
 }
 
@@ -50,9 +50,10 @@ main {
   margin-bottom: 10px;
   padding: 10px;
   border-radius: 25px;
-  background-color: rgba(53, 53, 53, 0.7490196078);
-  background-image: linear-gradient(rgba(53, 53, 53, 0.7490196078), rgba(21, 21, 21, 0.7490196078));
-  backdrop-filter: blur(10px);
+  background-image: linear-gradient(rgba(53, 53, 53, 0.75), rgba(21, 21, 21, 0.75));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: grid;
   grid-template-columns: 25px 1fr;
   align-items: center;
@@ -68,6 +69,17 @@ main {
   margin-top: 10px;
   margin-bottom: 10px;
   align-self: center;
+}
+
+.cta_btn {
+  padding: 10px;
+  border-radius: 15px;
+  background-image: linear-gradient(rgba(207, 207, 207, 0.5), rgba(207, 207, 207, 0.5));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #000000;
+  font-weight: 700;
 }
 
 .drop-down-message {
@@ -122,14 +134,6 @@ main {
   align-self: center;
   margin-top: 10px;
   margin-bottom: 10px;
-}
-.logged_in_buttons button {
-  padding: 10px;
-  border-radius: 15px;
-  background-color: rgba(207, 207, 207, 0.7490196078);
-  color: #000000;
-  font-weight: 700;
-  border: none;
 }
 
 .modal_content {
@@ -221,6 +225,26 @@ main {
   transform: rotate(180deg) !important;
 }
 
+.settings_group {
+  display: grid;
+  grid-template-rows: repeat(2, auto);
+}
+.settings_group label {
+  color: #ffffff;
+  padding-top: 10px;
+}
+.settings_group span {
+  color: #ffffff;
+}
+.settings_group textarea {
+  resize: none;
+  padding: 10px;
+  border-radius: 15px;
+}
+.settings_group input {
+  padding: 10px;
+  border-radius: 15px;
+}
 .settings_modal {
   display: grid;
   grid-template-columns: 20px 1fr 20px;
@@ -229,6 +253,13 @@ main {
 .settings_view {
   grid-column: 2/3;
   grid-row: 2/3;
+}
+.settings_view h2 {
+  color: #ffffff;
+}
+.settings_view p {
+  color: #ffffff;
+  padding-top: 0px;
 }
 
 .site-card {
@@ -343,6 +374,13 @@ main {
 
 .spinner {
   animation: spin 1s linear infinite;
+}
+
+.submit {
+  height: 40px;
+  width: 100%;
+  max-width: 150px;
+  margin-top: 10px;
 }
 
 .weekly-card {
@@ -531,7 +569,10 @@ main {
 }
 
 #nav_profile {
-  background-color: #59FFE5;
+  background-image: linear-gradient(rgba(147, 249, 234, 0.625), rgba(89, 255, 229, 0.625));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   height: 50px;
   width: 50px;
   border-radius: 25px;
@@ -549,8 +590,10 @@ main {
   padding: 10px;
   border-radius: 25px;
   color: #ffffff;
-  background-color: #3C0085;
-  background-image: linear-gradient(#3C0085, #000066);
+  background-image: linear-gradient(rgba(60, 0, 133, 0.5), rgba(0, 0, 102, 0.5));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: scroll;
   overflow-x: hidden;
   -ms-overflow-style: none;
@@ -560,6 +603,11 @@ main {
   display: none;
 }
 
+#settings_form {
+  display: grid;
+  grid-template-rows: repeat(8, 1fr);
+}
+
 #stella-map {
   position: fixed !important;
   top: 0;
@@ -567,7 +615,7 @@ main {
   width: 100vw;
   height: 100vh;
   z-index: -1 !important;
-  background-color: #00464D !important;
+  background-color: #00131A !important;
   pointer-events: auto;
 }
 #stella-map .leaflet-tile-container {
