@@ -4,12 +4,12 @@ import passport from 'passport';
 
 import { Router } from 'express';
 import User from '../../models/User.js'; 
+import { sendVerificationEmail } from '../../utils/mailer.js';
 const router = Router();
 
 router.post('/register', async (req, res) => {
     try{
         const { accountInfo, preferences } = req.body;
-
         const { firstName, lastName, email, password } = accountInfo || {};
 
         if (!email || !password) return res.status(400).json({ message: "Missing fields" });
@@ -19,7 +19,6 @@ router.post('/register', async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
         const newUser = new User({
@@ -40,9 +39,24 @@ router.post('/register', async (req, res) => {
 
         await newUser.save();
 
-        console.log(`User created. Verification Token: ${verificationToken}`);
+        console.log(`🚀 DEV: User ${accountInfo.email} registered and auto-verified.`);
 
-        res.status(201).json({ message: "User registered! Waiting for manual verification." });
+        const emailResult = await sendVerificationEmail(email, firstName, verificationToken);
+
+        if (!emailResult.success) {
+            return res.status(500).json({ message: "User created, but failed to send verification email."});
+        }
+
+        if (process.env.NODE_ENV === 'development' || emailResult.isDev) {
+            return res.status(201).json({ 
+                message: "Dev Mode: User created! Check terminal for link or just log in.",
+                devLink: `http://localhost:3000/api/user/verify?token=${verificationToken}`
+            });
+        }
+
+        res.status(201).json({ message: "Check your email to verify your account!"});
+
+        console.log(`User created. Verification Token: ${verificationToken}`);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Server error during registration" });
@@ -126,6 +140,27 @@ router.post('/save-search', async (req, res) => {
     } catch (err) {
         console.error("❌ Save Search Error:", err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/verify', async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.status(400).send("<h1>Verification Failed</h1><p>No token provided.</p>");
+
+    try {
+        const user = await User.findOne({ "accountInfo.verificationToken": token });
+
+        if (!user) return res.status(400).send("<h1>Verification Failed</h1><p>Invalid or expired token.</p>");
+
+        user.accountInfo.isVerified = true;
+        user.accountInfo.verificationToken = undefined;
+        await user.save();
+
+        console.log(`✅ User ${user.accountInfo.email} is now verified.`);
+        res.redirect('/?verified=true');
+    } catch (err) {
+        console.error("Verification Error:", err);
+        res.status(500).send("Internal Server Error during verification.");
     }
 });
 

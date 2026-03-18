@@ -669,6 +669,16 @@ document.addEventListener("visibilityChange", () => {
     }
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    const mapElement = document.getElementById('stella-map');
+    if (mapElement) {
+        console.log("🗺️ Map container found, initializing...");
+        initMap(40.7128, -74.0060);
+    } else {
+        console.error("❌ Could not find stella-map element in the DOM.");
+    }
+});
+
 document.getElementById('hero_details').addEventListener('click', () => {
     const drawer = document.getElementById('stella-drawer');
     const chevron = document.querySelector('button#hero_details #hero_details_svg');

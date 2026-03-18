@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap");
 body {
   margin: 0px;
+  isolation: isolate;
 }
 
 h1, h2, h3, h4, p, input, a, span, button {
@@ -11,12 +12,28 @@ header {
   margin: 8px;
 }
 
-html {
-  background-color: #00131A;
+header, main {
+  pointer-events: none;
+}
+
+header, main, footer, .modal_overlay {
+  position: relative;
+  z-index: 10;
+}
+
+html, body {
+  background-color: transparent !important;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
 }
 
 footer {
+  position: relative;
+  z-index: 20;
   background-color: #00464D;
+  pointer-events: auto;
 }
 footer p {
   padding: 15px;
@@ -25,6 +42,7 @@ footer p {
 
 main {
   margin: 8px;
+  background: transparent !important;
 }
 
 /*Classes*/
@@ -87,6 +105,10 @@ main {
   border: none;
 }
 
+.hero, .modal_overlay, .nav_bar, footer p, button, input, a, .ai-status {
+  pointer-events: auto;
+}
+
 .hidden {
   display: none !important;
 }
@@ -117,11 +139,14 @@ main {
   grid-column: 3/4;
 }
 .modal_overlay {
-  background-image: linear-gradient(rgba(53, 53, 53, 0.7490196078), rgba(21, 21, 21, 0.7490196078));
-  background-color: rgba(53, 53, 53, 0.7490196078);
+  background-image: linear-gradient(rgba(53, 53, 53, 0.7), rgba(21, 21, 21, 0.8));
+  background-color: rgba(53, 53, 53, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 40px;
   width: 100%;
   max-width: 345px;
-  border-radius: 40px;
   padding: 15px;
   margin: 10px;
 }
@@ -400,6 +425,9 @@ main {
   grid-column: 3/4;
   font-size: 14px;
 }
+.weekly-card .score_best {
+  background-color: #57ff65;
+}
 .weekly-card .score_good {
   background-color: #a0ff57;
 }
@@ -408,6 +436,9 @@ main {
 }
 .weekly-card .score_bad {
   background-color: #ffae57;
+}
+.weekly-card .score_terrible {
+  background-color: #ff5757;
 }
 .weekly_stats {
   display: grid;
@@ -526,6 +557,28 @@ main {
 }
 #results-container::-webkit-scrollbar {
   display: none;
+}
+
+#stella-map {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1 !important;
+  background-color: #00464D !important;
+  pointer-events: auto;
+}
+#stella-map .leaflet-tile-container {
+  filter: none();
+}
+#stella-map .leaflet-tile {
+  transition: filter 0.3s ease;
+}
+#stella-map .light-pollution-layer {
+  filter: sepia(100%) saturate(400%) brightness(1.1) !important;
+  mix-blend-mode: screen;
+  opacity: 0.6;
 }
 
 #weekly_outlook {

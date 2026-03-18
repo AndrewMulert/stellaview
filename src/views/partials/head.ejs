@@ -3,14 +3,16 @@
 <meta name="description" content="<%= description %>">
 <title><%= title %></title>
 <link rel="icon" href="/images/stellaview_favicon.ico">
+
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/larger.css">
-<% if (styles && styles.length > 0) { %>
+
+<% if (locals.styles && styles.length > 0) { %>
     <% styles.forEach((style) => { %>
         <%- style %>
     <% }); %>
 <% } %>
-<% if (scripts && scripts.length > 0) { %>
+<% if (locals.scripts && scripts.length > 0) { %>
     <% scripts.forEach((script) => { %>
         <%- script %>
     <% }); %>
