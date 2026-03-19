@@ -1,5 +1,19 @@
 import * as api from "./api.js";
 
+export function calculateDistance(loc1, loc2) {
+    const lat1 = loc1.lat ?? loc1.latitude;
+    const lon1 = loc1.lon ?? loc1.longitude;
+    const lat2 = loc2.lat ?? loc2.latitude;
+    const lon2 = loc2.lon ?? loc2.longitude;
+
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
 export function calculateDriveTime(loc1, loc2) {
     if (!loc1 || !loc2) return 0;
     
@@ -212,4 +226,8 @@ export async function getNDVI(lat, lon, manifestTiles) {
         console.error("NDVI Fetch error:", error);
         return 0.01;
     }
+}
+
+export function formatCoords(lat, lon) {
+    return `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
 }

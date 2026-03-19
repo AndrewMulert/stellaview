@@ -10,6 +10,7 @@ const timeSpan = document.querySelector("#home_time");
 const decisionSpan = document.querySelector("#hero_decision");
 let wakeLock = null;
 let lastSearchTime = 0;
+let map;
 const SEARCH_COOLDOWN = 15000;
 
 if (yearSpan) {
@@ -302,6 +303,24 @@ function displayResults(sites, prefs) {
                 <a class="card_link" href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
             </div>
         `;
+
+        card.addEventListener('mouseenter', () => {
+            const markerClass = `.marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`;
+            const marker = document.querySelector(markerClass);
+            if (marker){
+                marker.style.transform = "scale(1.8)";
+                marker.style.transition = "transform 0.2s ease";
+                marker.style.zIndex = "1000";
+            }
+        });
+
+        card.addEventListener('mouseleave', () => {
+            const markerClass = `.marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`;
+            const marker = document.querySelector(markerClass);
+            if (marker){
+                marker.style.transform = "scale(1)";
+            }
+        })
         container.classList.remove("hidden");
         container.appendChild(card);
     });
@@ -416,6 +435,10 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     const driveMinutes = prefs.maxDriveTime || 60;
     const searchRadiusKM = (driveMinutes / 60) * 45 * 1.60934;
 
+    if (typeof window.initMap === 'function') {
+        window.initMap(coords.lat, coords.lon);
+    }
+
     const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, searchRadiusKM);
 
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
@@ -443,6 +466,32 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     }
 
     const { sites, topFailure} = results;
+
+    if (sites && sites.length > 0 && typeof window.updateMapMarkers === 'function') {
+        const bounds = L.latLngBounds([coords.lat, coords.lon]);
+        sites.forEach(site => bounds.extend([site.lat, site.lon]));
+
+        if (window.stellaMap) {
+            window.stellaMap.flyToBounds(bounds, {
+                padding: [50, 50],
+                duration: 2,
+                easeLinearity: 0.5
+            });
+
+            window.updateMapMarkers(sites);
+
+            const radiusInMeters = (prefs.maxDriveTime / 60) * 45 * 1609.34;
+            L.circle([coords.lat, coords.lon], {
+                radius: radiusInMeters,
+                color: '#FFDB59',
+                weight: 1,
+                fillOpacity: 0.05,
+                dashArray: '5, 10'
+            }).addTo(window.stellaMap);
+        }
+
+        window.updateMapMarkers(sites);
+    }
 
     if (!sites || sites.length === 0) {
         console.warn("No sites found in results object.");
@@ -660,7 +709,7 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.id === 'location_input') handleSearch();
 });
 
-document.addEventListener("visibilityChange", () => {
+document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         if (!document.getElementById('ai-loader').classList.contains('hidden')) {
             console.log("♻️ Stella resumed. Ensuring AI is still active...");
@@ -673,7 +722,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapElement = document.getElementById('stella-map');
     if (mapElement) {
         console.log("🗺️ Map container found, initializing...");
-        initMap(40.7128, -74.0060);
     } else {
         console.error("❌ Could not find stella-map element in the DOM.");
     }
@@ -688,9 +736,89 @@ document.getElementById('hero_details').addEventListener('click', () => {
     chevron.classList.toggle('rotate-chevron');
 });
 
+window.initMap = function(lat, lon) {
+    const container = document.getElementById('stella-map');
+    if (!container) {
+        console.error("❌ Map container #stella-map not found in HTML.");
+        return;
+    }
+    
+    if (window.stellaMap) {
+        window.stellaMap.flyTo([lat, lon], window.stellaMap.getZoom() < 8 ? 8 : window.stellaMap.getZoom(), {
+            animate: true,
+            duration: 1.5
+        });
+        return;
+    };
+
+    console.log("🗺️ Initializing Leaflet map at:", lat, lon);
+
+    const mapInstance = L.map('stella-map', {
+        center: [lat, lon],
+        zoom: 7,
+        minZoom: 3,
+        maxZoom: 18,
+        zoomControl: false,
+        attributionControl: false,
+        worldCopyJump: true,
+        bounceAtZoomLimits: true
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+    }).addTo(mapInstance);
+
+    markerGroup = L.layerGroud().addTo(mapInstance);
+    
+    window.stellaMap = mapInstance;
+};
+
+window.updateMapMarkers = function(sites) {
+    if (!markerGroup || !window.stellaMap) return;
+    markerGroup.clearLayers();
+
+    sites.forEach(site => {
+        const marker = L.circleMarker([site.lat, site.lon], {
+            radius: 8,
+            fillColor: "#FFDB59",
+            color: "#00464D",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9,
+            className: `marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`
+        });
+
+        marker.bindTooltip(site.name, {
+            direction: 'top',
+            offset: [0, -10],
+            className: 'stella-tooltip'
+        });
+
+        marker.on('mouseover', function() {
+            this.setRadius(14);
+            this.setStyle({ weight: 4 });
+        });
+
+        marker.on('mouseout', function() {
+            this.setRadius(8);
+            this.setStyle({ weight: 2 });
+        });
+
+        markerGroup.addLayer(marker);
+    });
+};
+
 async function startApp() {
     console.log("🚀 Initializing StellaView...");
     await initializeUserSession();
+
+    const prefs = await getActivePrefs(window.currentUser);
+    const home = prefs.homeLocation || { lat: 44.4280, lon: -110.5885 };
+
+    window.initMap(home.lat, home.lon);
+
     await initAI();
     await runStargazingEngine();
 }

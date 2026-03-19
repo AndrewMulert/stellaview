@@ -30,13 +30,16 @@ html, body {
 }
 
 footer {
-  position: relative;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
   z-index: 20;
   background-color: #00464D;
   pointer-events: auto;
 }
 footer p {
   padding: 15px;
+  margin: 0px;
   color: #ffffff;
 }
 
