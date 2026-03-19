@@ -31,8 +31,6 @@ window.initMap = function(lat, lon) {
         bounceAtZoomLimits: true
     });
 
-    window.stellaMap = map;
-
     const southWest = L.latLng(-89.981557, -180);
     const northEast = L.latLng(89.993461, 180);
     const bounds = L.latLngBounds(southWest, northEast);
@@ -49,6 +47,8 @@ window.initMap = function(lat, lon) {
     }).addTo(map);
 
     markerGroup = L.layerGroup().addTo(map);
+    window.radiusGroup = L.layerGroup().addTo(map);
+    window.stellaMap = map;
 };
 
 window.updateMapMarkers = function(sites) {
@@ -56,9 +56,15 @@ window.updateMapMarkers = function(sites) {
     markerGroup.clearLayers();
 
     sites.forEach(site => {
+        let dynamicColor = "#ff5757"; // Default Red
+        if (site.score >= 80) dynamicColor = "#57ff8f";
+        else if (site.score >= 60) dynamicColor = "#81ff57";
+        else if (site.score >= 40) dynamicColor = "#e3ff57";
+        else if (site.score >= 20) dynamicColor = "#ffb957";
+
         const marker = L.circleMarker([site.lat, site.lon], {
             radius: 8,
-            fillColor: "#FFDB59",
+            fillColor: dynamicColor,
             color: "#00464D",
             weight: 2,
             opacity: 1,
@@ -87,24 +93,48 @@ window.updateMapMarkers = function(sites) {
 
 window.loadLightPollution = async function(userLat, userLon) {
     const MAX_RENDER_DISTANCE = 150;
+    const STEP = 5;
+
+    const latTile = Math.floor(userLat / STEP) * STEP;
+    const lonTile = Math.floor(userLon / STEP) * STEP;
+    const tileId = `${latTile}_${lonTile}`;
+
     try{
-        const response = await fetch('https://raw.githubusercontent.com/AndrewMulert/light_tiles/main/t_-10_-10.json');
+        const url = 'https://AndrewMulert.github.io/light_tiles/t_${tileId}.json';
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            console.warn(`No light pollution tile found for ${tileId}`);
+            return;
+        }
+
         const data = await response.json();
-
         const userLoc = { lat: userLat, lon: userLon };
-        const heatPoints = data.filter(point => {const dist = calculateDistance(userLoc, { lat: point.lat, lon: point.lon}); return dist <= MAX_RENDER_DIST;}).map(point => [point.lat, point.lon, point.value / 10]);
 
-        console.log(`Rendering ${heatPoints.length} pollution points near ${formatCoords(userLat, userLon)}`);
+        const heatPoints = [];
 
-        if (window.heatLayer && map) map.removeLayer(window.heatLayer);
+        if (Array.isArray(data) && data[0].lat !== undefined) {
+            data.forEach(point => {
+                const dist = calculateDistance(userLoc, { lat: point.lat, lon: point.lon});
+                if (dist <= MAX_RENDER_DISTANCE) {
+                    heatPoints.push([point.lat, point.lon, point.value / 10]);
+                }
+            });
+        }
 
-        window.heatLayer = L.heatLayer(heatPoints, {
-            radius: 25,
-            blur: 15,
-            maxZoom: 10,
-            gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1: 'red' }
-        }).addTo(map);
+        console.log(`Rendering ${heatPoints.length} points from tile ${tileId}`);
+
+        if (window.heatLayer && window.stellaMap) window.stellaMap.removeLayer(window.heatLayer);
+
+        if (heatPoints.length > 0){
+                window.heatLayer = L.heatLayer(heatPoints, {
+                radius: 25,
+                blur: 15,
+                maxZoom: 10,
+                gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1: 'red' }
+            }).addTo(map);
+        }
     } catch (err) {
-        console.error("Light pollution data failed to load:", err);
+        console.error("Light pollution heatmap failed:", err);
     }
 }

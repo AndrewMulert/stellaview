@@ -360,16 +360,16 @@ main {
   font-size: 14px;
 }
 .site-card .score_best {
-  background-color: #57ff65;
+  background-color: #57ff8f;
 }
 .site-card .score_good {
-  background-color: #a0ff57;
+  background-color: #81ff57;
 }
 .site-card .score_okay {
-  background-color: #f7ff57;
+  background-color: #e3ff57;
 }
 .site-card .score_bad {
-  background-color: #ffae57;
+  background-color: #ffb957;
 }
 .site-card .score_terrible {
   background-color: #ff5757;
@@ -468,16 +468,16 @@ main {
   font-size: 14px;
 }
 .weekly-card .score_best {
-  background-color: #57ff65;
+  background-color: #57ff8f;
 }
 .weekly-card .score_good {
-  background-color: #a0ff57;
+  background-color: #81ff57;
 }
 .weekly-card .score_okay {
-  background-color: #f7ff57;
+  background-color: #e3ff57;
 }
 .weekly-card .score_bad {
-  background-color: #ffae57;
+  background-color: #ffb957;
 }
 .weekly-card .score_terrible {
   background-color: #ff5757;

@@ -5,13 +5,15 @@ import { getActivePrefs } from './config.js';
 import { trainStellaBrain, predictWithBrain } from './brain.js';
 import * as api from "./api.js";
 
-const yearSpan = document.querySelector("#year");
-const timeSpan = document.querySelector("#home_time");
 const decisionSpan = document.querySelector("#hero_decision");
-let wakeLock = null;
+const SEARCH_COOLDOWN = 15000;
+const timeSpan = document.querySelector("#home_time");
+const yearSpan = document.querySelector("#year");
 let lastSearchTime = 0;
 let map;
-const SEARCH_COOLDOWN = 15000;
+let markerGroup;
+let radiusGroup;
+let wakeLock = null;
 
 if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
@@ -403,7 +405,7 @@ async function handleSearch() {
             console.log("Found location:", data[0].display_name);
             statusText.innerText = "📌 Location found...";
 
-            const prefs = await getActivePrefs(currentUser);
+            const prefs = await getActivePrefs(window.currentUser);
             await updateUI(newCoords, prefs);
 
         } else {
@@ -480,14 +482,17 @@ const updateUI = async (coords, prefs, sessionId = null) => {
 
             window.updateMapMarkers(sites);
 
-            const radiusInMeters = (prefs.maxDriveTime / 60) * 45 * 1609.34;
-            L.circle([coords.lat, coords.lon], {
-                radius: radiusInMeters,
-                color: '#FFDB59',
-                weight: 1,
-                fillOpacity: 0.05,
-                dashArray: '5, 10'
-            }).addTo(window.stellaMap);
+            if (window.radiusGroup) {
+                window.radiusGroup.clearLayers();
+                const radiusInMeters = (prefs.maxDriveTime / 60) * 45 * 1609.34;
+                L.circle([coords.lat, coords.lon], {
+                    radius: radiusInMeters,
+                    color: '#FFDB59',
+                    weight: 1,
+                    fillOpacity: 0.05,
+                    dashArray: '5, 10'
+                }).addTo(window.radiusGroup);
+            }
         }
 
         window.updateMapMarkers(sites);
@@ -515,6 +520,7 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     decisionSpan.textContent = "Tonight is a good night for stargazing.";
 
     if (featuredContainer && topSite) {
+        featuredContainer.classList.remove('hidden');
         renderFeaturedSite(topSite, featuredContainer);
     }
     displayResults(otherSites, prefs);
@@ -528,6 +534,10 @@ const updateUI = async (coords, prefs, sessionId = null) => {
         loader.classList.add('hidden')
         if (spinner) spinner.classList.remove('hidden');
     }, 3000);
+
+    if (typeof window.loadLightPollution === 'function') {
+        window.loadLightPollution(coords.lat, coords.lon);
+    }
 
     syncSearchResults(coords, sites);
 };
@@ -697,6 +707,14 @@ async function handleNoResults(topFailure, coords, allSites, prefs) {
         loader.classList.add('hidden'); 
         if (spinner) spinner.classList.remove('hidden');
     }, 3000);
+};
+
+function getScoreColor(score) {
+    if (score >= 80) return "#57ff65";
+    if (score >= 60) return "#a0ff57";
+    if (score >= 40) return "#f7ff57";
+    if (score >= 20) return "#ffae57";
+    return "#ff5757";
 }
 
 document.addEventListener('click', (e) => {
@@ -770,7 +788,8 @@ window.initMap = function(lat, lon) {
         maxZoom: 20
     }).addTo(mapInstance);
 
-    markerGroup = L.layerGroud().addTo(mapInstance);
+    markerGroup = L.layerGroup().addTo(mapInstance);
+    radiusGroup = L.layerGroup().addTo(mapInstance);
     
     window.stellaMap = mapInstance;
 };
@@ -782,7 +801,7 @@ window.updateMapMarkers = function(sites) {
     sites.forEach(site => {
         const marker = L.circleMarker([site.lat, site.lon], {
             radius: 8,
-            fillColor: "#FFDB59",
+            fillColor: getScoreColor(site.score),
             color: "#00464D",
             weight: 2,
             opacity: 1,
