@@ -5,7 +5,6 @@ let markerGroup = null;
 
 const getHeatOptions = (zoom) => {
     const dynamicRadius = zoom <= 7 ? 15 : Math.pow(zoom, 1.8);
-
     const dynamicBlur = zoom < 8 ? 25 : 15;
 
     return {
@@ -31,7 +30,8 @@ window.initMap = function(lat, lon) {
         console.error("❌ Map container #stella-map not found in HTML.");
         return;
     }
-    
+
+
     if (map) {
         map.flyTo([lat, lon], map.getZoom() < 8 ? 8 : map.getZoom(), {
             animate: true,
@@ -58,6 +58,7 @@ window.initMap = function(lat, lon) {
     const bounds = L.latLngBounds(southWest, northEast);
 
     map.setMaxBounds(bounds);
+
     map.on('drag', function() {
         map.panInsideBounds(bounds, { animate: false });
     });
@@ -89,7 +90,7 @@ window.updateMapMarkers = function(sites) {
     markerGroup.clearLayers();
 
     sites.forEach(site => {
-        let dynamicColor = "#ff5757"; 
+        let dynamicColor = "#ff5757";
         if (site.score >= 80) dynamicColor = "#57ff8f";
         else if (site.score >= 60) dynamicColor = "#81ff57";
         else if (site.score >= 40) dynamicColor = "#e3ff57";
@@ -129,17 +130,17 @@ window.loadLightPollution = async function(userLat, userLon) {
     const heatPoints = [];
     const currentZoom = window.stellaMap.getZoom();
 
-    const getColorForIntensity = (i) => {
-        if (i < 0.1) return "Purple (Below Threshold)";
-        if (i < 0.3) return "Blue";
-        if (i < 0.5) return "Cyan";
-        if (i < 0.7) return "Lime";
-        if (i < 1.0) return "Yellow";
-        return "Red";
-    };
+    let range = 1;
+    if (currentZoom < 6) range = 2;
+    if (currentZoom < 4) range = 3;
 
     const latBase = Math.floor(userLat / STEP) * STEP;
     const lonBase = Math.floor(userLon / STEP) * STEP;
+
+    const getJitter = (lat, lon, seed) => {
+        const val = Math.sin(lat * 12.9898 + lon * 78.233 + seed) * 43758.5454;
+        return (val - Math.floor(val)) - 0.5;
+    }
 
     const fetchTile = async (tLat, tLon) => {
         try {
@@ -149,8 +150,8 @@ window.loadLightPollution = async function(userLat, userLon) {
     };
 
     const tileCoords = [];
-    for (let i = -1; i <= 1; i++) {
-        for (let j = -1; j <= 1; j++) {
+    for (let i = -range; i <= range; i++) {
+        for (let j = -range; j <= range; j++) {
             tileCoords.push({ lat: latBase + (i * STEP), lon: lonBase + (j * STEP)});
         }
     }
@@ -173,46 +174,51 @@ window.loadLightPollution = async function(userLat, userLon) {
         console.log(`📊 Max Value in current data: ${maxValFound}`);
 
         results.forEach(({data, lat, lon}) => {
-            if (!data) return;
+            if (!data || !data.length) return;
             const rows = data.length;
             const cols = data[0].length;
-            const currentZoom = window.stellaMap.getZoom();
 
-            const stride = 1;
+            const latSpacing = STEP / rows;
+            const lonSpacing = STEP / cols;
 
-            for (let r = 0; r < rows; r+= stride) {
-                for (let c = 0; c < cols; c+= stride) {
-                    const val = data[r][c];
-                    if (val <  0.5) continue;
+            const stride = currentZoom < 5 ? 2 : 1;
+            const subDiv = currentZoom >= 13 ? 2 : 1;
 
-                    const latSpacing = STEP / rows;
-                    const lonSpacing = STEP / cols;
+            for (let r = 0; r < rows - 1; r+= stride) {
+                for (let c = 0; c < cols - 1; c+= stride) {
+                    const v00 = data[r][c];
+                    const v01 = data[r][c + 1];
+                    const v10 = data [r + 1][c];
+                    const v11 = data[r + 1][c + 1];
 
-                    const jitter = () => (Math.random() - 0.5) * 1.5;
-                    const pLat = lat + ( ( (rows - 1 - r ) / (rows - 1) ) * STEP) + (jitter() * latSpacing);
-                    const pLon = lon + ( (c / (cols - 1)) * STEP ) + (jitter() * lonSpacing);
+                    for (let sr = 0; sr < subDiv; sr++) {
+                        for (let sc = 0; sc < subDiv; sc++) {
+                            const tx = sc / subDiv;
+                            const ty = sr / subDiv;
 
-                    const URBAN_CEILING = 250;
-                    let intensity = Math.log10(val + 1) / Math.log10(URBAN_CEILING + 1);
-                    intensity = Math.min(1.0, intensity);
+                            const interpolatedVal = (1 - tx) * (1 - ty) * v00 + tx * (1 - ty) * v01 + (1 - tx) * ty * v10 + tx * ty * v11;
+                            if (interpolatedVal < 0.5) continue;
 
-                    if (currentZoom > 10) {
-                        const zoomBoost = (currentZoom - 10) * 0.2;
-                        intensity = Math.min(1.0, intensity + zoomBoost);
-                    };
+                            const jLat = getJitter(lat, lon, r + sr) * latSpacing * 1.5;
+                            const jLon = getJitter(lat, lon, c + sc) * lonSpacing * 1.5;
 
-                    if (currentZoom < 6) {
-                        intensity = Math.max(0.2, intensity);
+                            const pLat = lat + (((rows - 1 - (r + ty)) / (rows - 1)) * STEP) + jLat;
+                            const pLon = lon + (((c + tx) / (cols - 1)) * STEP) + jLon;
+
+                            const URBAN_CEILING = 250;
+                            let intensity = Math.log10(interpolatedVal + 1) / Math.log10(URBAN_CEILING + 1);
+
+                            intensity = Math.min(1.0, intensity);
+
+                            if (currentZoom > 10) intensity = Math.min(1.0, intensity + (currentZoom - 10) * 0.15);
+                            if (currentZoom < 6) intensity = Math.max(0.2, intensity);
+
+                            heatPoints.push([pLat, pLon, intensity]);
+                        }
                     }
-
-                    if (heatPoints.length % 500 === 0) {
-                        console.log(`📍 Point sample: [Lat: ${pLat.toFixed(2)}, Lon: ${pLon.toFixed(2)}] | Raw: ${val.toFixed(2)} | Intensity: ${intensity.toFixed(3)} | Color: ${getColorForIntensity(intensity)}`);
-                    }
-
-                    heatPoints.push([pLat, pLon, intensity]);
                 }
             }
-       });
+        });
 
         if (window.heatLayer && window.stellaMap) window.stellaMap.removeLayer(window.heatLayer);
 
@@ -245,11 +251,11 @@ window.syncMapState = function(coords, sites, prefs) {
     window.updateMapMarkers(sites);
 
     if (window.radiusGroup) {
+
         window.radiusGroup.clearLayers();
 
         const miles = (prefs.maxDriveTime / 60) * 45;
         const meters = miles * 1609.34;
-
         const rangeCircle = L.circle([coords.lat, coords.lon], {
             radius: meters,
             color: '#FFDB59',
@@ -258,7 +264,6 @@ window.syncMapState = function(coords, sites, prefs) {
             dashArray: '4, 8',
             interactive: false
         }).addTo(window.radiusGroup);
-
         const targetBounds = rangeCircle.getBounds();
         window.stellaMap.flyToBounds(targetBounds, {
             padding: [40, 40],
