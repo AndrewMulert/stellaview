@@ -1,27 +1,28 @@
-import { calculateDistance, formatCoords } from './utils.js';
-
 let map = null;
 let markerGroup = null;
+let moveTimeout;
+let dataLayer = L.featureGroup();
 
 const getHeatOptions = (zoom) => {
-    const dynamicRadius = zoom <= 7 ? 15 : Math.pow(zoom, 1.8);
-    const dynamicBlur = zoom < 8 ? 25 : 15;
+    const radius = Math.max(10, (zoom - 2) * 5);
+    const blur = radius * 0.85;
 
     return {
-        radius: dynamicRadius,
-        blur: 15,
-        maxZoom: 18,
-        minOpacity: 0.1,
-        max: zoom > 12 ? 0.4 : (zoom <= 8 ? 1.0 : 0.6),
+        radius: radius,
+        blur: blur,
+        maxZoom: 13,
+        minOpacity: 0.15,
+        max: 0.85,
         gradient: {
-            0.10: '#0d001c',
-            0.25: 'blue',
-            0.50: 'cyan',
-            0.70: 'lime',
-            0.85: 'yellow',
-            1.00: 'red'
+            0.05: '#000033',
+            0.15: '#4b0082',
+            0.30: '#00ffff',
+            0.50: '#00ff00',
+            0.70: '#ffff00',
+            0.85: '#ff0000',
+            1.00: '#ffffff'
         }
-    }
+    };
 };
 
 window.initMap = function(lat, lon) {
@@ -53,6 +54,15 @@ window.initMap = function(lat, lon) {
         bounceAtZoomLimits: true
     });
 
+    const originalCreateCanvas = L.Canvas.prototype._initCanvas;
+    L.Canvas.prototype._initCanvas = function () {
+        originalCreateCanvas.call(this);
+        const ctx = this._ctx;
+        if (ctx) {
+            this._canvas.getContext('2d', { willReadFrequently: true });
+        }
+    };
+
     const southWest = L.latLng(-89.981557, -180);
     const northEast = L.latLng(89.993461, 180);
     const bounds = L.latLngBounds(southWest, northEast);
@@ -63,6 +73,12 @@ window.initMap = function(lat, lon) {
         map.panInsideBounds(bounds, { animate: false });
     });
 
+    map.on('layeradd', (e) => {
+        if (e.layer._canvas) {
+            e.layer._canvas.getContext('2d', { willReadFrequently: true });
+        }
+    });
+
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
@@ -71,14 +87,25 @@ window.initMap = function(lat, lon) {
 
     markerGroup = L.layerGroup().addTo(map);
     window.radiusGroup = L.layerGroup().addTo(map);
+    dataLayer.addTo(map);
     window.stellaMap = map;
 
-    map.on('moveend', () => {
-        const center = map.getCenter();
-        window.loadLightPollution(center.lat, center.lng);
+    map.on('moveend', function() {
+        clearTimeout(moveTimeout);
+        moveTimeout = setTimeout(() => {
+            const center = map.getCenter();
+            window.loadLightPollution(center.lat, center.lng);
+        }, 250);
     });
 
-    map.on('zoomend', () => {
+    map.on('zoomend', function() {
+        var currentZoom = map.getZoom();
+        var newRadius = calculateRadius(currentZoom);
+
+        dataLayer.setStyle({
+            radius: newRadius
+        });
+
         if (window.heatLayer) {
             window.heatLayer.setOptions(getHeatOptions(map.getZoom()));
         }
@@ -90,11 +117,7 @@ window.updateMapMarkers = function(sites) {
     markerGroup.clearLayers();
 
     sites.forEach(site => {
-        let dynamicColor = "#ff5757";
-        if (site.score >= 80) dynamicColor = "#57ff8f";
-        else if (site.score >= 60) dynamicColor = "#81ff57";
-        else if (site.score >= 40) dynamicColor = "#e3ff57";
-        else if (site.score >= 20) dynamicColor = "#ffb957";
+        const dynamicColor = getScoreColor(site.score);
 
         const marker = L.circleMarker([site.lat, site.lon], {
             radius: 8,
@@ -126,21 +149,17 @@ window.updateMapMarkers = function(sites) {
 };
 
 window.loadLightPollution = async function(userLat, userLon) {
+    window.capturedMapData = [];
+
     const STEP = 5;
     const heatPoints = [];
     const currentZoom = window.stellaMap.getZoom();
+    const bounds = window.stellaMap.getBounds();
 
-    let range = 1;
-    if (currentZoom < 6) range = 2;
-    if (currentZoom < 4) range = 3;
-
-    const latBase = Math.floor(userLat / STEP) * STEP;
-    const lonBase = Math.floor(userLon / STEP) * STEP;
-
-    const getJitter = (lat, lon, seed) => {
-        const val = Math.sin(lat * 12.9898 + lon * 78.233 + seed) * 43758.5454;
-        return (val - Math.floor(val)) - 0.5;
-    }
+    const west = Math.floor(bounds.getWest() / STEP) * STEP;
+    const east = Math.floor(bounds.getEast() / STEP) * STEP;
+    const south = Math.floor(bounds.getSouth() / STEP) * STEP;
+    const north = Math.floor(bounds.getNorth() / STEP) * STEP;
 
     const fetchTile = async (tLat, tLon) => {
         try {
@@ -150,99 +169,151 @@ window.loadLightPollution = async function(userLat, userLon) {
     };
 
     const tileCoords = [];
-    for (let i = -range; i <= range; i++) {
-        for (let j = -range; j <= range; j++) {
-            tileCoords.push({ lat: latBase + (i * STEP), lon: lonBase + (j * STEP)});
+    for (let lat = south; lat <= north; lat += STEP) {
+        for (let lon = west; lon <= east; lon += STEP) {
+            tileCoords.push({ lat, lon });
         }
     }
 
-    try{
+    try {
         const results = await Promise.all(tileCoords.map(c => fetchTile(c.lat, c.lon).then(data => ({data, ...c}))));
-
         const successfulTiles = results.filter(r => r.data).length;
-        console.log(`📡 Tiles fetched: ${successfulTiles}/9`);
 
-        let maxValFound = 0;
+        let localMax = 0.1;
         results.forEach(({data}) => {
-            if (!data) return;
+            if (!data || !data.length) return;
             data.forEach(row => {
                 const rowMax = Math.max(...row);
-                if (rowMax > maxValFound) maxValFound = rowMax;
+                if (rowMax > localMax) localMax = rowMax;
             });
         });
 
-        console.log(`📊 Max Value in current data: ${maxValFound}`);
+        console.group(`🌌 DATA DIAGNOSTIC: Zoom ${currentZoom}`);
+        console.log(`📡 Tiles: ${successfulTiles}/9 | Local Max Brightness: ${localMax}`);
+
+        let distribution = { low: 0, cyan: 0, green: 0, yellow: 0, high: 0 };
+        let topPoints = [];
+        let pointsProcessed = 0;
 
         results.forEach(({data, lat, lon}) => {
             if (!data || !data.length) return;
             const rows = data.length;
             const cols = data[0].length;
+        
+            let stride = currentZoom <= 6 ? 3 : 1;
 
-            const latSpacing = STEP / rows;
-            const lonSpacing = STEP / cols;
+            const BASELINE_NOISE = 0.5;
+            const FUNCTIONAL_MAX = 120;
+            const minLog = Math.log10(BASELINE_NOISE + 1);
+            const maxLog = Math.log10(FUNCTIONAL_MAX + 1);
+            const logRange = maxLog - minLog;
 
-            const stride = currentZoom < 5 ? 2 : 1;
-            const subDiv = currentZoom >= 13 ? 2 : 1;
+            for (let r = 0; r < rows; r += stride) {
+                for (let c = 0; c < cols; c+= stride) {
+                    const val = data[r][c];
 
-            for (let r = 0; r < rows - 1; r+= stride) {
-                for (let c = 0; c < cols - 1; c+= stride) {
-                    const v00 = data[r][c];
-                    const v01 = data[r][c + 1];
-                    const v10 = data [r + 1][c];
-                    const v11 = data[r + 1][c + 1];
+                    if (val <= BASELINE_NOISE) continue;
+                    let assignedColor = "Unknown";
 
-                    for (let sr = 0; sr < subDiv; sr++) {
-                        for (let sc = 0; sc < subDiv; sc++) {
-                            const tx = sc / subDiv;
-                            const ty = sr / subDiv;
+                    const latOffset = ((rows - 1 - r) / (rows - 1)) * STEP;
+                    const lonOffset = (c / (cols - 1)) * STEP;
 
-                            const interpolatedVal = (1 - tx) * (1 - ty) * v00 + tx * (1 - ty) * v01 + (1 - tx) * ty * v10 + tx * ty * v11;
-                            if (interpolatedVal < 0.5) continue;
+                    const pLat = lat + latOffset;
+                    const pLon = lon + lonOffset;
 
-                            const jLat = getJitter(lat, lon, r + sr) * latSpacing * 1.5;
-                            const jLon = getJitter(lat, lon, c + sc) * lonSpacing * 1.5;
+                    const valLog = Math.log10(val + 1);
+                    let intensity = (valLog - minLog) / logRange;
+                    intensity = Math.pow(intensity, 0.5);
+                    intensity = Math.max(0, Math.min(1.0, intensity));
 
-                            const pLat = lat + (((rows - 1 - (r + ty)) / (rows - 1)) * STEP) + jLat;
-                            const pLon = lon + (((c + tx) / (cols - 1)) * STEP) + jLon;
+                    if (isNaN(intensity)) continue;
 
-                            const URBAN_CEILING = 250;
-                            let intensity = Math.log10(interpolatedVal + 1) / Math.log10(URBAN_CEILING + 1);
-
-                            intensity = Math.min(1.0, intensity);
-
-                            if (currentZoom > 10) intensity = Math.min(1.0, intensity + (currentZoom - 10) * 0.15);
-                            if (currentZoom < 6) intensity = Math.max(0.2, intensity);
-
-                            heatPoints.push([pLat, pLon, intensity]);
-                        }
+                    if (intensity > 0.8) {
+                        assignedColor = "White/Hotspot";
+                        distribution.high++;
+                    } else if (intensity > 0.6) {
+                        assignedColor = "Yellow/Red";
+                        distribution.yellow++;
+                    } else if (intensity > 0.4) {
+                        assignedColor = "Green/Cyan";
+                        distribution.green++;
+                    } else if (intensity > 0.2) {
+                        assignedColor = "Blue/Indigo";
+                        distribution.cyan++;
+                    } else {
+                        assignedColor = "Deep Blue";
+                        distribution.low++;
                     }
+
+                    if (pointsProcessed % 2000 === 0) {
+                        console.log(
+                            `📍 COORDS: ${pLat.toFixed(4)}, ${pLon.toFixed(4)} | ` +
+                            `RAW: ${val.toFixed(1)} | ` +
+                            `INTENSITY: ${intensity.toFixed(2)} | ` +
+                            `COLOR: ${assignedColor}`
+                        );
+                    }
+
+                    if (isNaN(intensity)) continue;
+
+                    window.capturedMapData.push({
+                        lat: Number(pLat.toFixed(4)),
+                        lon: Number(pLon.toFixed(4)),
+                        v: Number(val.toFixed(2)),
+                        i: Number(intensity.toFixed(4))
+                    });
+
+                    if (topPoints.length < 5 || intensity > topPoints[topPoints.length - 1].intensity) {
+                        topPoints.push({ lat: pLat.toFixed(4), lon: pLon.toFixed(4), rawVal: val.toFixed(2), intensity });
+                        topPoints.sort((a, b) => b.intensity - a.intensity);
+                        if (topPoints.length > 5) topPoints.pop();
+                    }
+
+                    heatPoints.push([pLat, pLon, Math.min(1.0, intensity)]);
+                    pointsProcessed++;
                 }
             }
         });
 
-        if (window.heatLayer && window.stellaMap) window.stellaMap.removeLayer(window.heatLayer);
+        console.log("🏆 Top 5 Brightest Points in View:");
+        console.table(topPoints);
+        console.log("📊 Distribution Summary:", distribution);
+
+        if (window.heatLayer && window.stellaMap.hasLayer(window.heatLayer)) {
+            window.stellaMap.removeLayer(window.heatLayer);
+        }
 
         if (typeof L.heatLayer !== 'function') {
             console.error("❌ Leaflet Heat plugin is missing!");
             return;
         }
 
-        if (heatPoints.length > 0) {
-            const currentZoom = window.stellaMap.getZoom();
+        if (heatPoints.length > 0 && window.stellaMap) {
             const options = getHeatOptions(currentZoom);
-
             window.heatLayer = L.heatLayer(heatPoints, options).addTo(window.stellaMap);
+
+            const canvas = window.heatLayer._canvas;
+            if (canvas) {
+                canvas.classList.add('stella-heat-layer')
+            }
         }
+
+        if (window.currentUser?.accessLevel >= 10) {
+            downloadCapturedData();
+        }
+
+        console.groupEnd();
     } catch (err) {
         console.error("Heatmap Load Error:", err);
     }
 }
 
 function getScoreColor(score) {
-        if (score >= 80) return "#57ff8f";
-        if (score >= 60) return "#81ff57";
-        if (score >= 40) return "#e3ff57";
-        return "#ffb957";
+    if (score >= 80) return "#57ff8f";
+    if (score >= 60) return "#81ff57";
+    if (score >= 40) return "#e3ff57";
+    if (score >= 20) return "#ffb957";
+    return "#ff5757";
 }
 
 window.syncMapState = function(coords, sites, prefs) {
@@ -279,3 +350,35 @@ window.syncMapState = function(coords, sites, prefs) {
         });
     }
 };
+
+window.capturedMapData = [];
+
+function calculateRadius(zoom) {
+    return Math.pow(2, zoom / 3);
+}
+
+function downloadCapturedData() {
+    const userAccess = window.currentUser?.accessLevel || window.accessLevel || 0;
+
+    if (userAccess < 10) {
+        console.warn("🚫 Access Denied: Level 10 required for data export. Current level:", window.accessLevel || 0);
+        return;
+    }
+
+    if (!window.capturedMapData || window.capturedMapData.length === 0) {
+        console.warn("⚠️ No data captured to export.");
+        return;
+    }
+
+    const fileName = `stella_data_${new Date().toISOString().split('T')[0]}.json`;
+
+    const blob = new Blob([JSON.stringify(window.capturedMapData)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    console.log(`✅ Exported ${window.capturedMapData.length} points.`);
+}

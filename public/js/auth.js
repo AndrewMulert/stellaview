@@ -1,5 +1,5 @@
 import { DEFAULT_PREFS, getActivePrefs } from './config.js';
-import { geocode } from './api.js'
+import * as api from './api.js';
 
 async function handleRegister(event) {
     event.preventDefault();
@@ -27,6 +27,11 @@ async function handleRegister(event) {
             }
         }
     };
+
+    if (!fName || !lName || !email || !pass) {
+        alert("Please fill out all fields.");
+        return;
+    }
 
     console.log("Sending to server:", userData);
 
@@ -66,6 +71,10 @@ function updateModalView(user) {
     } else {
         if (loggedOutView) loggedOutView.classList.remove('hidden');
         if (loggedInView) loggedInView.classList.add('hidden');
+    }
+
+    if (user && user.accountInfo.accessLevel >= 10) {
+        console.log("Admin access detected");
     }
 }
 
@@ -214,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (addressString && addressString !== initialPrefs.homeLocationLabel) {
             console.log("📍 Address changed, fetching new coordinates...");
 
-            const geoData = await geocode(addressString);
+            const geoData = await api.geocode(addressString);
 
             if (geoData) {
                 homeLocation = {
@@ -275,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (response.ok){ 
                 alert("Preferences Saved!");
                 if (window.runStargazingEngine) {
-                    window.runSTargazingEngine(updatedPrefs, { saveToCache: true});
+                    window.runStargazingEngine(updatedPrefs, { saveToCache: true});
                 }
                 settingsModal.classList.add('hidden');
                 location.reload();
@@ -332,9 +341,9 @@ async function updateUIForLoggedInUser() {
 };
 
 async function saveHomeLocation(addressString) {
-    const geoData = await geocode(addressString);
+    const geoData = await api.geocode(addressString);
     if (geoData) {
-        currentUser.preferences.fallback_loc = {
+        currentUser.preferences.homeLocation = {
             lat: geoData.lat,
             lon: geoData.lon,
             label: geoData.label

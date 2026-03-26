@@ -34,7 +34,10 @@ footer {
   bottom: 0;
   width: 100%;
   z-index: 20;
-  background-color: #00464D;
+  background-image: linear-gradient(rgba(0, 133, 113, 0.5), rgba(0, 133, 113, 0.5));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   pointer-events: auto;
 }
 footer p {
@@ -377,6 +380,12 @@ main {
 
 .spinner {
   animation: spin 1s linear infinite;
+}
+
+.stella-heat-layer {
+  mix-blend-mode: screen;
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .submit {

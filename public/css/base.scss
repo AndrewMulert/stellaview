@@ -63,7 +63,7 @@ footer{
     bottom: 0;
     width: 100%;
     z-index: 20;
-    background-color: $dark-secondary;
+    @include glassBlur($color2: $medium-secondary-transparent);
     pointer-events: auto;
     & p{
         padding: 15px;
@@ -438,6 +438,12 @@ main{
 
 .spinner {
     animation: spin 1s linear infinite;
+}
+
+.stella-heat-layer {
+    mix-blend-mode: screen;
+    opacity: 0.8;
+    pointer-events: none;
 }
 
 .submit {

@@ -151,9 +151,9 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre('validate', function(next) {
     const loc = this.preferences.homeLocation;
-    const hasAny = loc.lat !== null || loc.lon !== null || loc.label !== null;
-    const hasAll = loc.lat !== null && loc.lon !== null && loc.label !== null;
-
+    const hasAny = !!(loc.lat || loc.lon || loc.label);
+    const hasAll = !!(loc.lat && loc.lon && loc.label);
+    
     if(hasAny && !hasAll) {
         next(new Error('homeLocation must be fully defined (lat, lon, and label) or not defined at all.'));
     } else {
