@@ -18,7 +18,11 @@ export async function getActivePrefs(loggedInUser = null) {
 
     if (loggedInUser && loggedInUser.preferences) {
         console.log("Using Database Preferences");
-        prefs = { ...DEFAULT_PREFS, ...loggedInUser.preferences };
+        prefs = { 
+            ...DEFAULT_PREFS, 
+            ...loggedInUser.preferences,
+            accessLevel : loggedInUser.accountInfo?.accessLevel ?? 1
+        };
 
         if (!prefs.homeLocation || !prefs.homeLocation.lat || !prefs.homeLocation.lon) {
             console.warn("User has no home location set. Falling back to System Default.");
@@ -34,5 +38,5 @@ export async function getActivePrefs(loggedInUser = null) {
     }
 
     console.log("Using Default System Preferences");
-    return DEFAULT_PREFS;
+    return { DEFAULT_PREFS, accessLevel: 0 };
 }

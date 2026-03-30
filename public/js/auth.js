@@ -162,6 +162,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            const level = window.currentUser.accountInfo?.accessLevel || 0;
+            let sliderMax = 60;
+
+            if (level >= 10) {
+                sliderMax = 300;
+            } else if (level >= 2) {
+                sliderMax = 240;
+            } else if (level === 1) {
+                sliderMax = 180;
+            }
+
+            const driveSlider = document.getElementById('pref_max_drive');
+            if (driveSlider) {
+                driveSlider.max = sliderMax;
+                if (parseInt(driveSlider.value) > sliderMax) {
+                    driveSlider.value = sliderMax;
+                    const display = document.getElementById('val_max_drive');
+                    if (display) display.textContent = sliderMax;
+                }
+                console.log(`Setting Max Drive slider limit to ${sliderMax} for Access Level ${level}`);
+            }
+
             const currentActive = await getActivePrefs(window.currentUser);
 
             const formateTimeForInput = (time) => {

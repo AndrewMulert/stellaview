@@ -84,21 +84,27 @@ export async function getDrivingDistance(coordinates) {
     const url = `https://router.project-osrm.org/table/v1/driving/${coordinates}?sources=0`;
 
     try {
-        const response = await fetch(url);
-        const data = await response.json();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
 
-        if (data.code !== 'Ok') return null;
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+
+        const data = await response.json();
+        if (data.code !== 'Ok') throw new Error("OSRM_FAIL");
 
         return data.durations[0].slice(1).map(seconds => seconds / 60);
     } catch (e) {
-        console.error("OSRM Error:", e);
+        console.warn("OSRM Failed or Timed Out. Triggering local estimation fallback.");
         return null;
     }
 };
 
-export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
+export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries = 3) {
     const geoCache = getLocalCache();
-    const QUERY_VERSION = "v3.2_number_expanded";
+    const radiusKm = driveTimeToRadius(maxDriveTime);
+
+    const QUERY_VERSION = "v3.3_dynamic_radius";
     const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}|${QUERY_VERSION}`;
     const cachedEntry = geoCache[cacheId];
     
@@ -109,16 +115,14 @@ export async function getNearbyDarkPlaces(lat, lon, radiusKm, retries = 3) {
     
     const radiusMeters = radiusKm * 1000;
 
-    const query = `[out:json][timeout:30];
+    const query = `[out:json][timeout:60];
     (
-    nwr["leisure"~"park|nature_reserve"]["area"!~"^[0-9]{1,4}\\."](around:${radiusMeters},${lat},${lon});
-    
-    nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
-    nwr["tourism"~"camp_site|viewpoint"](around:${radiusMeters},${lat},${lon});
-    nwr["natural"~"peak|rock|stone|cliff|canyon"](around:${radiusMeters},${lat},${lon});
+      nwr["leisure"~"nature_reserve"](around:${radiusMeters},${lat},${lon});
+      nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
+      nwr["tourism"~"camp_site"](around:${radiusMeters},${lat},${lon});
+      nwr["natural"~"peak|canyon"](around:${radiusMeters},${lat},${lon});
     );
-
-    nwr._["sport"!~".*"]["lit"!~"yes"]["access"!~"private|no"]["landuse"!~"residential|industrial|commercial"];
+    nwr._["lit"!~"yes"]["access"!~"private|no"]["landuse"!~"residential|industrial|commercial"];
     out center 150;`;
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
@@ -245,6 +249,10 @@ export async function getMeanTemperature(lat, lon){
         console.error("Mean Temp API Error:", error);
         return null;
     }
+}
+
+function driveTimeToRadius(minutes) {
+    return (minutes / 60) * 60 * 1.60934;
 }
 
 cleanupOldCache();

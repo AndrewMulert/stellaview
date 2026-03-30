@@ -431,14 +431,25 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     loader.classList.remove('hidden');
     statusText.innerText = "🔦 Looking for Stargazing Sites...";
 
-    const driveMinutes = prefs.maxDriveTime || 60;
-    const searchRadiusKM = (driveMinutes / 60) * 45 * 1.60934;
+    let effectiveDriveTime = prefs.maxDriveTime || 60;
+    const level = prefs.accessLevel || 0;
+
+    if (level >= 2) {
+        effectiveDriveTime = Math.min(effectiveDriveTime, 180);
+        console.log(`Access Level ${level}: Premium Radius Active`);
+    } else if (level === 1) {
+        effectiveDriveTime = Math.min(effectiveDriveTime, 60);
+        console.log("Access Level 1: Standard Radius Active");
+    } else {
+        effectiveDriveTime = Math.min(effectiveDriveTime, 30);
+        console.log("Access Level 0: Guest Radius Active");
+    }
 
     if (typeof window.initMap === 'function') {
         window.initMap(coords.lat, coords.lon);
     }
 
-    const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, searchRadiusKM);
+    const allSites = await api.getNearbyDarkPlaces(coords.lat, coords.lon, effectiveDriveTime);
 
     console.log(`Updating UI for ${coords.lat}, ${coords.lon}`);
 
@@ -468,7 +479,12 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     window.lastSites = sites;
 
     if (typeof window.syncMapState === 'function') {
-        window.syncMapState(coords, sites, prefs);
+        if (results?.sites?.length > 0) {
+            window.syncMapState(coords, results.sites, prefs);
+        } else {
+            window.syncMapState(coords, [], prefs);
+            console.warn("No sites found for this search.");
+        }
     }
 
     if (!sites || sites.length === 0) {
