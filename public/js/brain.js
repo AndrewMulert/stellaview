@@ -153,12 +153,10 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             if (BRAIN_CACHE.has(siteKey)) {
                 data = BRAIN_CACHE.get(siteKey);
             } else {
-                const [weather, aqi, radiance, siteNDVI] = await Promise.all([
-                    checkWeatherWindow(site, windowStart, windowEnd, prefs),
-                    checkAirQuality(site),
-                    getRadianceValue(site.lat, site.lon, lightTiles),
-                    getNDVI(site.lat, site.lon, vegTiles),
-                ]);
+                const weather = await checkWeatherWindow(site, windowStart, windowEnd, prefs);
+                const aqi = await checkAirQuality(site);
+                const radiance = await getRadianceValue(site.lat, site.lon, lightTiles);
+                const siteNDVI = await getNDVI(site.lat, site.lon, vegTiles);
 
                 const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
                 const travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes[i] : calculateDriveTime(userLoc, site);
@@ -185,9 +183,15 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
     const queue = [...semiFilteredSites.entries()];
 
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
     async function worker() {
         while (queue.length > 0) {
             const [index, site] = queue.shift();
+
+            const jitter = Math.floor(Math.random() * 500) + 300;
+            await new Promise(res => setTimeout(res, jitter));
+
             await processSite(site, index);
             
             if (tracker) {
@@ -212,7 +216,11 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         }
     }
 
-    await Promise.all(Array(Math.min(5, semiFilteredSites.length)).fill(null).map(() => worker()));
+    await Promise.all(
+        Array(Math.min(2, semiFilteredSites.length))
+        .fill(null)
+        .map((_, i) => delay(i * 800).then(() => worker()))
+    );
 
     let validSites = [];
 

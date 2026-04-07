@@ -2,6 +2,12 @@ export const BASE_WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const CACHE_KEY = "stella_geo_cache";
 const CACHE_DURATION = 60 * 60 * 1000;
 const aqiCache = new Map();
+const delay = ms => new Promise(res => setTimeout(res, ms));
+const weatherCache = new Map();
+
+let globalMeanTempCache = null;
+let meanTempPromise = null;
+let apiQueue = Promise.resolve();
 
 function getLocalCache() {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -12,9 +18,13 @@ function setLocalCache(cache) {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
 }
 
+function snap(coord) {
+    return parseFloat(coord.toFixed(2));
+}
+
 function cleanupOldCache() {
     const geoCache = getLocalCache();
-    const now = Date();
+    const now = Date.now();
     const MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
     let changed = false;
@@ -53,14 +63,16 @@ export async function getAirQuality(lat, lon, days = 7) {
         return {success: false, reason: "missing_coords"};
     }
 
-    const cacheKey = `${lat.toFixed(1)}_${lon.toFixed(1)}_${days}`;
+    const snappedLat = snap(lat);
+    const snappedLon = snap(lon);
+    const cacheKey = `${snappedLat}_${snappedLon}_${days}`;
 
     if (aqiCache.has(cacheKey)) {
         return aqiCache.get(cacheKey);
     }
 
     const request = (async () => {
-        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=${days}`;
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${snappedLat}&longitude=${snappedLon}&hourly=pm2_5&forecast_days=${days}`;
     
         try {
             const response = await fetch(url);
@@ -85,7 +97,7 @@ export async function getDrivingDistance(coordinates) {
 
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeout);
@@ -115,25 +127,31 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries =
     
     const radiusMeters = radiusKm * 1000;
 
-    const query = `[out:json][timeout:60];
+    const query = `[out:json][timeout:30];
     (
-      nwr["leisure"~"nature_reserve"](around:${radiusMeters},${lat},${lon});
-      nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
-      nwr["tourism"~"camp_site"](around:${radiusMeters},${lat},${lon});
-      nwr["natural"~"peak|canyon"](around:${radiusMeters},${lat},${lon});
+        nwr["leisure"~"nature_reserve"](around:${radiusMeters},${lat},${lon});
+        nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
+        nwr["tourism"~"camp_site"](around:${radiusMeters},${lat},${lon});
+        nwr["natural"~"peak|canyon"](around:${radiusMeters},${lat},${lon});
     );
-    nwr._["lit"!~"yes"]["access"!~"private|no"]["landuse"!~"residential|industrial|commercial"];
     out center 150;`;
 
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+    const mirrors = [
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass-api.de/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter"
+    ];
 
     for (let i = 0; i < retries; i++) {
         try {
+            const baseUrl = mirrors[i % mirrors.length];
+            const url = `${baseUrl}?data=${encodeURIComponent(query)}`;
+
             const response = await fetch(url);
             
             if (response.status === 504 || response.status === 429) {
-                const waitTime = (i + 1) * 2000;
-                console.warn(`🔄 Overpass busy. Retry ${i+1}/${retries} in ${waitTime}ms...`);
+                const waitTime = Math.pow(2, i) * 1000 + (Math.random() * 1000);
+                console.warn(`🔄 Mirror ${i} busy. Backing off for ${Math.round(waitTime)}ms...`);
                 await new Promise(res => setTimeout(res, waitTime));
                 continue; 
             }
@@ -144,15 +162,25 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries =
 
             const finalResults = data.elements.map(el => {
                 const tags = el.tags || {};
+
+                const forbiddenLanduse = ["residential", "industrial", "commercial"].includes(tags.landuse);
+                const privateAccess = ["private", "no"].includes(tags.access);
+                const isLit = tags.lit === "yes";
+
+                if (forbiddenLanduse || privateAccess || isLit) return null;
+
                 const name = (tags.name || "").toLowerCase();
                 const landuse = (tags.landuse || "").toLowerCase();
 
                 const privateKeywords = ["ranch", "farm", "estate", "residence", "private", "club", "driveway"];
                 if (privateKeywords.some(word => name.includes(word))) return null;
 
-                const isOfficial = /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || 
+                const isHistoricDistrict = name.includes("historic district") || name.includes("townsite");
+                const isOfficial = !isHistoricDistrict && (
+                    /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || 
                     tags.leisure === "nature_reserve" || 
-                    tags.boundary === "protected_area";
+                    tags.boundary === "protected_area"
+                );
 
                 const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
 
@@ -216,43 +244,98 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries =
     return [];
 }
 
-export async function getWeatherData(lat, lon, days = 1, fahrenheit = true) {
+export async function getWeatherData(lat, lon, days = 1, fahrenheit = true, attempts = 3) {
     if (lat === undefined || lon === undefined) {
         console.error("❌ getWeatherData blocked: lat/lon is undefined");
         return null;
     }
+
+    const cacheKey = `${snap(lat)}_${snap(lon)}_${days}_${fahrenheit}`;
+    if (weatherCache.has(cacheKey)) {
+        return weatherCache.get(cacheKey);
+    }
+
     const unit = fahrenheit ? "&temperature_unit=fahrenheit" : "";
     const url = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,cloud_cover&forecast_days=${days}&timezone=GMT${unit}`;
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Weather API failed");
-    return await response.json();
-}
+    for (let i = 0; i < attempts; i++) {
+        try {
+            const response = await fetch(url);
+            if (response.status === 429) {
+                const wait = Math.pow(2, i) * 1000 + (Math.random() * 1000);
+                console.warn(`⚠️ Weather Rate Limited (429). Retrying in ${Math.round(wait)}ms...`);
+                await new Promise(res => setTimeout(res, wait));
+                continue;
+            }
 
-export async function getMeanTemperature(lat, lon){
-    try {
-        const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
-        const avgRes = await fetch(avgTempUrl);
+            if (!response.ok) throw new Error("Weather API failed");
 
-        if (avgRes.status === 429) {
-            console.warn("Rate limited by Open-Meteo. Falling back.");
-            return null;
+            const data = await response.json();
+            weatherCache.set(cacheKey, data);
+
+            return data;
+        } catch (err) {
+            if (i === attempts - 1){
+                console.error("❌ Weather fetch failed after all retries:", err);
+                return null;
+            }
+            await new Promise(res => setTimeout(res, 1000 * (i + 1)));
         }
-
-        const avgData = await avgRes.json();
-
-        if (avgData?.daily?.temperature_2m_mean) {
-            return avgData.daily.temperature_2m_mean[0];
-        }
-        return null;
-    } catch (error) {
-        console.error("Mean Temp API Error:", error);
-        return null;
     }
 }
 
+export async function getMeanTemperature(lat, lon){
+    const regionLat = lat.toFixed(1);
+    const regionLon = lon.toFixed(1);
+    const regionalKey = `${regionLat}_${regionLon}`;
+    
+    if (globalMeanTempCache === regionalKey) return globalMeanTempCache.value;
+    if (meanTempPromise) return meanTempPromise;
+
+    meanTempPromise = (async () => {
+        try {
+            const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${regionLat}&longitude=${regionLon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
+            const avgRes = await fetch(avgTempUrl, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (avgRes.status === 429) {
+                console.warn("Rate limited by Open-Meteo. Falling back.");
+                globalMeanTempCache = null;
+                return null;
+            }
+
+            const avgData = await avgRes.json();
+            if (avgData?.daily?.temperature_2m_mean) {
+                globalMeanTempCache = avgData.daily.temperature_2m_mean[0];
+                return avgData.daily.temperature_2m_mean[0];
+            }
+            return null;
+        } catch (error) {
+            console.error("Mean Temp API Error:", error);
+            return null;
+        } finally {
+            meanTempPromise = null;
+        }
+    })();
+
+    return meanTempPromise;
+}
+
+async function queuedFetch(url, options = {}) {
+    apiQueue = apiQueue.then(async () => {
+        await delay(150);
+        return fetch(url, options);
+    });
+    return apiQueue;
+}
+
 function driveTimeToRadius(minutes) {
-    return (minutes / 60) * 60 * 1.60934;
+    return minutes * 1.60934; 
 }
 
 cleanupOldCache();
