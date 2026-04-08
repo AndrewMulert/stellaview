@@ -8,6 +8,7 @@ const weatherCache = new Map();
 let globalMeanTempCache = null;
 let meanTempPromise = null;
 let apiQueue = Promise.resolve();
+let weatherQueue = Promise.resolve();
 
 function getLocalCache() {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -22,11 +23,14 @@ function snap(coord) {
     return parseFloat(coord.toFixed(2));
 }
 
+function driveTimeToRadius(minutes) {
+    return minutes * 1.60934; 
+}
+
 function cleanupOldCache() {
     const geoCache = getLocalCache();
     const now = Date.now();
     const MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-
     let changed = false;
     for (const key in geoCache) {
         if (now - geoCache[key].timestamp > MAX_AGE) {
@@ -35,6 +39,14 @@ function cleanupOldCache() {
         }
     }
     if (changed) setLocalCache(geoCache);
+}
+
+async function queuedWeatherFetch(url, options = {}) {
+    weatherQueue = weatherQueue.then(async () => {
+        await delay(100);
+        return fetch(url, options);
+    });
+    return weatherQueue;
 }
 
 export async function geocode(query) {
@@ -63,31 +75,24 @@ export async function getAirQuality(lat, lon, days = 7) {
         return {success: false, reason: "missing_coords"};
     }
 
-    const snappedLat = snap(lat);
-    const snappedLon = snap(lon);
-    const cacheKey = `${snappedLat}_${snappedLon}_${days}`;
-
+    const cacheKey = `${snap(lat)}_${snap(lon)}_${days}`;
     if (aqiCache.has(cacheKey)) {
         return aqiCache.get(cacheKey);
     }
 
     const request = (async () => {
-        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${snappedLat}&longitude=${snappedLon}&hourly=pm2_5&forecast_days=${days}`;
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${snap(lat)}&longitude=${snap(lon)}&hourly=pm2_5&forecast_days=${days}`;
     
         try {
-            const response = await fetch(url);
-            
+            const response = await queuedWeatherFetch(url);
             if (response.status === 429) throw new Error("429");
-            if (!response.ok) throw new Error("API_ERROR");
-        
+            if (!response.ok) throw new Error("AQI_API_FAIL");
             const data = await response.json();
             return {success: true, hourly: data.hourly, timezone: data.timezone, source: 'live' };
         } catch (error) {
-            console.error(`AQI ${error.message === '429' ? 'Rate Limited' : 'Failed'}: Using fallback.`);
             return {success: true, fallback: true, hourly: { pm2_5: new Array(168).fill(5), source: 'fallback' } };
         };
     })();
-
     aqiCache.set(cacheKey, request);
     return request;
 }
@@ -112,22 +117,18 @@ export async function getDrivingDistance(coordinates) {
     }
 };
 
-export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries = 3) {
+export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60) {
     const geoCache = getLocalCache();
     const radiusKm = driveTimeToRadius(maxDriveTime);
-
-    const QUERY_VERSION = "v3.3_dynamic_radius";
-    const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}|${QUERY_VERSION}`;
-    const cachedEntry = geoCache[cacheId];
-    
-    if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)) {
-        console.log("💾 Using cached StellaView map data for this region...");
-        return cachedEntry.data;
-    }
-    
     const radiusMeters = radiusKm * 1000;
+    const cacheId = `${lat.toFixed(2)}|${lon.toFixed(2)}|${radiusKm.toFixed(0)}|v3.3_dynamic_radius`;
+    
+    if (geoCache[cacheId] && (Date.now() - geoCache[cacheId].timestamp < CACHE_DURATION)) {
+        console.log("💾 Using cached StellaView map data for this region...");
+        return geoCache[cacheId].data;
+    }
 
-    const query = `[out:json][timeout:30];
+    const query = `[out:json][timeout:25];
     (
         nwr["leisure"~"nature_reserve"](around:${radiusMeters},${lat},${lon});
         nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
@@ -142,106 +143,97 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60, retries =
         "https://lz4.overpass-api.de/api/interpreter"
     ];
 
-    for (let i = 0; i < retries; i++) {
+    let data = null;
+    for (const baseUrl of mirrors) {
         try {
-            const baseUrl = mirrors[i % mirrors.length];
-            const url = `${baseUrl}?data=${encodeURIComponent(query)}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-            const response = await fetch(url);
-            
-            if (response.status === 504 || response.status === 429) {
-                const waitTime = Math.pow(2, i) * 1000 + (Math.random() * 1000);
-                console.warn(`🔄 Mirror ${i} busy. Backing off for ${Math.round(waitTime)}ms...`);
-                await new Promise(res => setTimeout(res, waitTime));
-                continue; 
-            }
-
-            if (!response.ok) throw new Error("OSM Network Response Error");
-            
-            const data = await response.json();
-
-            const finalResults = data.elements.map(el => {
-                const tags = el.tags || {};
-
-                const forbiddenLanduse = ["residential", "industrial", "commercial"].includes(tags.landuse);
-                const privateAccess = ["private", "no"].includes(tags.access);
-                const isLit = tags.lit === "yes";
-
-                if (forbiddenLanduse || privateAccess || isLit) return null;
-
-                const name = (tags.name || "").toLowerCase();
-                const landuse = (tags.landuse || "").toLowerCase();
-
-                const privateKeywords = ["ranch", "farm", "estate", "residence", "private", "club", "driveway"];
-                if (privateKeywords.some(word => name.includes(word))) return null;
-
-                const isHistoricDistrict = name.includes("historic district") || name.includes("townsite");
-                const isOfficial = !isHistoricDistrict && (
-                    /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || 
-                    tags.leisure === "nature_reserve" || 
-                    tags.boundary === "protected_area"
-                );
-
-                const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
-
-                const urbanKeywords = ["tennis", "soccer", "baseball", "playground", "skate", "complex", "stadium", "memorial", "elementary", "high school"];
-
-                if (blacklist.some(word => name.includes(word) || landuse.includes(word))) return null;
-
-                if (urbanKeywords.some(word => name.includes(word) || landuse.includes(word))) return null;
-
-                if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name || "Unnamed Protected Area"}`);
-
-                return {
-                    name: tags.name || "Remote Dark Spot",
-                    lat: el.lat || (el.center ? el.center.lat : null),
-                    lon: el.lon || (el.center ? el.center.lon : null),
-                    type: tags.leisure || tags.natural || "park",
-                    trustFactor: isOfficial ? 1.5: 0.5
-                };
-            }).filter(site => site && site.lat && site.lon);
-
-            if (finalResults.length > 0) {
-                geoCache[cacheId] = {
-                    timestamp: Date.now(),
-                    data: finalResults
-                };
-                setLocalCache(geoCache);
-            }
-
-            const sortedResults = finalResults.sort((a, b) => {
-                if (b.trustFactor !== a.trustFactor) return b.trustFactor - a.trustFactor;
-                if (a.name === "Remote Dark Spot" && b.name !== "Remote Dark Spot") return 1;
-                if (a.name !== "Remote Dark Spot" && b.name === "Remote Dark Spot") return -1;
-                return 0;
+            const res = await fetch(`${baseUrl}?data=${encodeURIComponent(query)}`, {
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                data = await res.json();
+                break;
+            }
+        } catch (err) {
+            console.warn(`Mirror ${baseUrl} failed or timed out, trying next...`);
+       }
+    }
+            
+    if (!data) {
+        console.error(`All Overpass mirrors failed.`);
+        const loader = document.getElementById('ai-loader');
+        const statusText = document.getElementById('ai-status-text');
+        if (loader) loader.classList.remove('hidden');
+        if (statusText) statusText.innerText = "❌ Request failed. Please refresh.";
+        return [];
+    }
+
+    try {
+        const finalResults = data.elements.map(el => {
+            const tags = el.tags || {};
+
+            const forbiddenLanduse = ["residential", "industrial", "commercial"].includes(tags.landuse);
+            const privateAccess = ["private", "no"].includes(tags.access);
+            const isLit = tags.lit === "yes";
+
+            if (forbiddenLanduse || privateAccess || isLit) return null;
+
+            const name = (tags.name || "").toLowerCase();
+            const landuse = (tags.landuse || "").toLowerCase();
+
+            const privateKeywords = ["ranch", "farm", "estate", "residence", "private", "club", "driveway"];
+            if (privateKeywords.some(word => name.includes(word))) return null;
+
+            const isHistoricDistrict = name.includes("historic district") || name.includes("townsite");
+            const isOfficial = !isHistoricDistrict && (
+                /park|reserve|recreation|forest|monument|wilderness|area/i.test(name) || 
+                tags.leisure === "nature_reserve" || 
+                tags.boundary === "protected_area"
+            );
+
+            const blacklist = ["landfill", "waste", "dump", "quarry", "treatment", "industrial", "prison"];
+
+            const urbanKeywords = ["tennis", "soccer", "baseball", "playground", "skate", "complex", "stadium", "memorial", "elementary", "high school"];
+
+            if (blacklist.some(word => name.includes(word) || landuse.includes(word))) return null;
+
+            if (urbanKeywords.some(word => name.includes(word) || landuse.includes(word))) return null;
+
+            if (isOfficial) console.log(`⭐ Official Site Verified: ${tags.name || "Unnamed Protected Area"}`);
+
+            return {
+                name: tags.name || "Remote Dark Spot",
+                lat: el.lat || (el.center ? el.center.lat : null),
+                lon: el.lon || (el.center ? el.center.lon : null),
+                type: tags.leisure || tags.natural || "park",
+                trustFactor: isOfficial ? 1.5: 0.5
+            };
+        }).filter(site => site && site.lat && site.lon);
+
+        if (finalResults.length > 0) {
+            geoCache[cacheId] = {
+                timestamp: Date.now(),
+                data: finalResults
+            };
+            setLocalCache(geoCache);
+        }
+
+        const sortedResults = finalResults.sort((a, b) => {
+            if (b.trustFactor !== a.trustFactor) return b.trustFactor - a.trustFactor;
+            if (a.name === "Remote Dark Spot" && b.name !== "Remote Dark Spot") return 1;
+            if (a.name !== "Remote Dark Spot" && b.name === "Remote Dark Spot") return -1;
+            return 0;
+        });
         
         return sortedResults;
-
-        } catch (e) {
-            console.error(`Attempt ${i+1} failed:`, e);
-            if (i === retries - 1) {
-                const loader = document.getElementById('ai-loader');
-                const statusText = document.getElementById('ai-status-text');
-
-                loader.classList.remove('hidden');
-                const spinner = loader.querySelector(".spinner");
-                if (spinner) spinner.classList.add('hidden');
-                if (statusText) {
-                    statusText.innerText = "❌ Request failed. Please refresh and try again.";
-                }
-                setTimeout(() => {
-                    loader.classList.add('hidden')
-
-                    if (spinner) spinner.classList.remove('hidden');
-                }, 3000);
-                console.error("❌ OSM Fetch failed after retries:", e);
-                statusText.innerText = "⚠️ Weather Call Failed. Try Again";
-                return [];
-            }
-        }
+    } catch (e) {
+        console.error("Error processing dark place data:", e);
+        return [];
     }
-    return [];
 }
 
 export async function getWeatherData(lat, lon, days = 1, fahrenheit = true, attempts = 3) {
@@ -258,63 +250,33 @@ export async function getWeatherData(lat, lon, days = 1, fahrenheit = true, atte
     const unit = fahrenheit ? "&temperature_unit=fahrenheit" : "";
     const url = `${BASE_WEATHER_URL}?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,cloud_cover&forecast_days=${days}&timezone=GMT${unit}`;
 
-    for (let i = 0; i < attempts; i++) {
-        try {
-            const response = await fetch(url);
-            if (response.status === 429) {
-                const wait = Math.pow(2, i) * 1000 + (Math.random() * 1000);
-                console.warn(`⚠️ Weather Rate Limited (429). Retrying in ${Math.round(wait)}ms...`);
-                await new Promise(res => setTimeout(res, wait));
-                continue;
-            }
-
-            if (!response.ok) throw new Error("Weather API failed");
-
-            const data = await response.json();
-            weatherCache.set(cacheKey, data);
-
-            return data;
-        } catch (err) {
-            if (i === attempts - 1){
-                console.error("❌ Weather fetch failed after all retries:", err);
-                return null;
-            }
-            await new Promise(res => setTimeout(res, 1000 * (i + 1)));
-        }
+    
+    try {
+        const response = await queuedWeatherFetch(url);
+        if (!response.ok) throw new Error("Weather API failed");
+        const data = await response.json();
+        weatherCache.set(cacheKey, data);
+        return data;
+    } catch (err) {
+        return null;
     }
 }
 
 export async function getMeanTemperature(lat, lon){
-    const regionLat = lat.toFixed(1);
-    const regionLon = lon.toFixed(1);
-    const regionalKey = `${regionLat}_${regionLon}`;
+    const regionalKey = `${lat.toFixed(1)}_${lon.toFixed(1)}`;
     
-    if (globalMeanTempCache === regionalKey) return globalMeanTempCache.value;
+    if (globalMeanTempCache?.key === regionalKey) return globalMeanTempCache.value;
     if (meanTempPromise) return meanTempPromise;
 
     meanTempPromise = (async () => {
         try {
-            const avgTempUrl = `${BASE_WEATHER_URL}?latitude=${regionLat}&longitude=${regionLon}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
-            const avgRes = await fetch(avgTempUrl, {
-                method: 'GET',
-                mode: 'cors',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            const url = `${BASE_WEATHER_URL}?latitude=${lat.toFixed(1)}&longitude=${lon.toFixed(1)}&daily=temperature_2m_mean&timezone=auto&forecast_days=1`;
+            const res = await queuedWeatherFetch(url);
+            const data = await res.json();
+            const val = data?.daily?.temperature_2m_mean?.[0] || null;
 
-            if (avgRes.status === 429) {
-                console.warn("Rate limited by Open-Meteo. Falling back.");
-                globalMeanTempCache = null;
-                return null;
-            }
-
-            const avgData = await avgRes.json();
-            if (avgData?.daily?.temperature_2m_mean) {
-                globalMeanTempCache = avgData.daily.temperature_2m_mean[0];
-                return avgData.daily.temperature_2m_mean[0];
-            }
-            return null;
+            globalMeanTempCache = { key: regionalKey, value: val };
+            return val;
         } catch (error) {
             console.error("Mean Temp API Error:", error);
             return null;
@@ -322,20 +284,7 @@ export async function getMeanTemperature(lat, lon){
             meanTempPromise = null;
         }
     })();
-
     return meanTempPromise;
-}
-
-async function queuedFetch(url, options = {}) {
-    apiQueue = apiQueue.then(async () => {
-        await delay(150);
-        return fetch(url, options);
-    });
-    return apiQueue;
-}
-
-function driveTimeToRadius(minutes) {
-    return minutes * 1.60934; 
 }
 
 cleanupOldCache();

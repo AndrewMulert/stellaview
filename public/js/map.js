@@ -2,22 +2,23 @@ let map = null;
 let markerGroup = null;
 let moveTimeout;
 let dataLayer = L.featureGroup();
+let currentFetchController = null;
 
 const MAP_CONFIG = {
     REF_ZOOM: 10,
     REF_RADIUS: 25,
-    BLUR_RATIO: 0.65,
+    BLUR_RATIO: 0.5,
 }
 
 const getHeatOptions = (zoom) => {
     const zoomDiff = zoom - MAP_CONFIG.REF_ZOOM;
-    const radius = MAP_CONFIG.REF_RADIUS * Math.pow(1.5, zoomDiff);
-    const clampedRadius = Math.max(10, Math.min(radius, 55));
+    const radius = MAP_CONFIG.REF_RADIUS * Math.pow(1.8, zoomDiff);
+    const clampedRadius = Math.max(10, Math.min(radius, 80));
 
     return {
         radius: clampedRadius,
         blur: clampedRadius * MAP_CONFIG.BLUR_RATIO,
-        maxZoom: 18,
+        maxZoom: 10,
         minOpacity: 0.05,
         max: 1.0,
         gradient: {
@@ -156,6 +157,12 @@ window.updateMapMarkers = function(sites) {
 };
 
 window.loadLightPollution = async function(userLat, userLon) {
+    if (currentFetchController) {
+        currentFetchController.abort();
+    }
+    currentFetchController = new AbortController();
+    const { signal } = currentFetchController;
+
     window.capturedMapData = [];
     const STEP = 5;
     const heatPoints = [];
@@ -171,7 +178,7 @@ window.loadLightPollution = async function(userLat, userLon) {
     const fetchTile = async (tLat, tLon) => {
         const url = `https://AndrewMulert.github.io/light_tiles/t_${tLat}_${tLon}.json`;
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, { signal });
             if (!response.ok) {
                 console.warn( `Missing Tile: ${tLat}, ${tLon} at ${url}`);
                 return null;
@@ -214,7 +221,7 @@ window.loadLightPollution = async function(userLat, userLon) {
             stride = Math.max(1, stride);
 
             const NOISE_FLOOR = 1.0;
-            const VISUAL_CEILING = Math.max(localMax, 65);
+            const VISUAL_CEILING = 45;
 
             for (let r = 0; r < rows; r += stride) {
                 for (let c = 0; c < cols; c+= stride) {
@@ -236,7 +243,7 @@ window.loadLightPollution = async function(userLat, userLon) {
 
                     let linearIntensity = (valLog - minLog) / (maxLog - minLog);
                     linearIntensity = Math.max(0, Math.min(1, linearIntensity));
-                    const gamma = currentZoom > 10 ? 1.0 : 1.3;
+                    const gamma = currentZoom > 10 ? 0.8 : 1.0;
 
                     let finalIntensity = Math.pow(linearIntensity, gamma);
 
@@ -314,12 +321,18 @@ window.loadLightPollution = async function(userLat, userLon) {
             return;
         }
 
+        if (window.heatLayer) {
+            window.stellaMap.removeLayer(window.heatLayer);
+            window.heatLayer = null;
+        }
+
         if (heatPoints.length > 0 && window.stellaMap) {
             window.heatLayer = L.heatLayer(heatPoints, currentOptions).addTo(window.stellaMap);
 
             const canvas = window.heatLayer._canvas;
             if (canvas) {
-                canvas.classList.add('stella-heat-layer')
+                canvas.classList.add('stella-heat-layer');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
             }
         }
 
