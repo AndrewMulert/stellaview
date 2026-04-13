@@ -194,18 +194,33 @@ main{
     }
     &_clock_time{
         color: $white;
-        background-image: linear-gradient($dark-secondary, $darker-secondary);
+        @include glassBlur;
         background-color: $darker-secondary;
+        border-radius: 25px;
+        height: 30px;
+        width: 100px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     &_items {
         list-style-type: none;
-        padding: 0px 0px 0px 0px;
-        overflow: hidden;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        /*overflow: hidden;*/
     }
 
     &_link_container {
-        float: left;
+        /*float: left;*/
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
 
         & div {
             display: block;
@@ -647,6 +662,12 @@ main{
     }
 }
 
+#home_time{
+    margin: 0px;
+    margin-top: 5px;
+    font-weight: 400;
+}
+
 #logged_in_view{
     grid-column: 2 /3;
     grid-row: 2 /3;
@@ -679,12 +700,18 @@ main{
 }
 
 #nav{
+    &_clock{
+        display: none;
+        padding: 10px;
+        flex-grow: 1;
+        justify-content: center;
+    }
     &_profile{
         @include glassBlur($color1: rgba(147, 249, 234, 0.625), $color2: rgba(89, 255, 229, 0.625));
         height: 50px;
         width: 50px;
         border-radius: 25px;
-        float: right;
+        /*float: right;*/
         margin-right: 5px;
         margin-top: 10px;
         margin-bottom: 10px;

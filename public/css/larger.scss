@@ -1,0 +1,17 @@
+@use "base.scss" as base;
+
+@media screen and (min-width: 40em) {
+    .nav {
+        &_search_bar {
+            & input{
+                width: 250px;
+            }
+        }
+    }
+    
+    #nav {
+        &_clock{
+            display: flex;
+        }
+    }
+}
