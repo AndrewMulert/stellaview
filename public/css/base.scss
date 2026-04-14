@@ -712,11 +712,23 @@ main{
         @include glassBlur($color1: rgba(147, 249, 234, 0.625), $color2: rgba(89, 255, 229, 0.625));
         height: 50px;
         width: 50px;
-        border-radius: 25px;
-        /*float: right;*/
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
         margin-right: 5px;
         margin-top: 10px;
         margin-bottom: 10px;
+
+        &.has-profile-pic #profile_svg{
+                display: none !important;
+                visibility: hidden;
+        }
+
+        #profile_svg {
+            pointer-events: none;
+        }
     }
 }
 

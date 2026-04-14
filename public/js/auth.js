@@ -62,30 +62,33 @@ export function updateModalView(user) {
     const loggedOutView = document.getElementById('logged_out_view');
     const loggedInView = document.getElementById('logged_in_view');
     const welcomeUser = document.getElementById('welcome_user');
-    const profileSvgImg = document.querySelector('#profile_svg image');
+    const navProfile = document.getElementById('nav_profile');
+    const profilePic = user?.accountInfo?.profilePicture;
     /*window.updateModalView = updateModalView;*/
 
     if (user) {
         if (loggedOutView) loggedOutView.classList.add('hidden');
         if (loggedInView) loggedInView.classList.remove('hidden');
         if (welcomeUser) welcomeUser.textContent = `Welcome, ${user.accountInfo.firstName}`;
-
-        if (profileSvgImg) {
-            profileSvgImg.setAttribute('href', user.accountInfo.profilePicture || '/images/icon_logged_in.svg'); 
-            profileSvgImg.style.clipPath = 'circle(50%)';
-        }
     } else {
         if (loggedOutView) loggedOutView.classList.remove('hidden');
         if (loggedInView) loggedInView.classList.add('hidden');
-
-        if (profileSvgImg) {
-            profileSvgImg.setAttribute('href', '/images/icon_user.svg');
-            profileSvgImg.style.clipPath = 'none';
-        }
     }
 
     if (user && user.accountInfo.accessLevel >= 10) {
         console.log("Admin access detected");
+    }
+
+    if (navProfile) {
+        if (profilePic) {
+            navProfile.style.backgroundImage = `url('${profilePic}')`;
+            navProfile.style.backgroundSize = 'cover';
+            navProfile.style.backgroundPosition = 'center';
+            navProfile.classList.add('has-profile-pic');
+        } else {
+            navProfile.style.backgroundImage = '';
+            navProfile.classList.remove('has-profile-pic');
+        }
     }
 }
 

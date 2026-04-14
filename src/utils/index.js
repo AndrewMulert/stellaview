@@ -44,13 +44,11 @@ const staticPaths = [
  */
 
 const getNav = (user = null) => {
-    let userImg = '/images/icon_user.svg'
+    const defaultIcon = '/images/icon_user.svg';
+    const profilePic = user?.accountInfo?.profilePicture;
     
-    if (user) {
-        userImg = (user.accountInfo && user.accountInfo.profilePicture)
-            ? user.accountInfo.profilePicture
-            : '/images/icon_user_default.svg';
-    }
+    const bgStyle = profilePic ? `style="background-image: url('${profilePic}'); background-size: cover; background-position: center;"` : '';
+    const profileClass = profilePic ? 'has-profile-pic' : '';
     
     return `
     <nav class="nav_bar">
@@ -77,10 +75,10 @@ const getNav = (user = null) => {
                     <h3 id="home_time"></h3>
                 </div>
             </li>
-            <li class="nav_link_container" id="nav_profile">
+            <li class="nav_link_container ${profileClass}" id="nav_profile" ${bgStyle}>
                 <a href="#" class="nav_links" id="profile_menu">
                     <svg id="profile_svg" width="30px" height="30px">
-                        <image width="30px" height="30px" href="${userImg}"></image>
+                        <image width="30px" height="30px" href="${defaultIcon}"></image>
                     </svg>
                 </a>
             </li>
