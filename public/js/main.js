@@ -3,7 +3,8 @@ console.log("!!! MAIN.JS IS LOADED !!!");
 import { findBestSites, findWeeklyOutlook, renderWeeklyOutlook } from './engine.js';
 import { getActivePrefs } from './config.js';
 import { trainStellaBrain, predictWithBrain } from './brain.js';
-import * as api from "./api.js";
+import * as api from './api.js';
+import { updateModalView } from './auth.js';
 
 const decisionSpan = document.querySelector("#hero_decision");
 const SEARCH_COOLDOWN = 15000;

@@ -49,6 +49,10 @@ const userSchema = new mongoose.Schema({
             type: String,
             unique: true,
             sparse: true
+        },
+        profilePicture: {
+            type: String,
+            default: '/images/icon_user.svg'
         }
     },
     preferences: {

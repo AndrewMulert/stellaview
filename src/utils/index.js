@@ -39,10 +39,19 @@ const staticPaths = [
  /**
  * Returns the navigation menu.
  *
+ * @param {Object} user - The authenticated user object
  * @returns {string} The navigation menu.
  */
 
-const getNav = () => {
+const getNav = (user = null) => {
+    let userImg = '/images/icon_user.svg'
+    
+    if (user) {
+        userImg = (user.accountInfo && user.accountInfo.profilePicture)
+            ? user.accountInfo.profilePicture
+            : '/images/icon_user_default.svg';
+    }
+    
     return `
     <nav class="nav_bar">
         <ul class="nav_items">
@@ -71,7 +80,7 @@ const getNav = () => {
             <li class="nav_link_container" id="nav_profile">
                 <a href="#" class="nav_links" id="profile_menu">
                     <svg id="profile_svg" width="30px" height="30px">
-                        <image width="30px" height="30px" href="/images/icon_user.svg"></image>
+                        <image width="30px" height="30px" href="${userImg}"></image>
                     </svg>
                 </a>
             </li>

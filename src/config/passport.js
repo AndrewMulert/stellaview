@@ -25,15 +25,22 @@ passport.use(new GoogleStrategy({
     proxy: true
 }, async (accessToken, refreshToken, profile, done) => {
     try {
+        const googlePhoto = (profile.photos && profile.photos.length > 0) 
+            ? profile.photos[0].value 
+            : null;
+
         let user = await User.findOne({
             $or: [{ "accountInfo.googleId": profile.id}, { "accountInfo.email": profile.emails[0].value }]
         });
 
         if (user) {
+            if (googlePhoto) {
+                user.accountInfo.profilePicture = googlePhoto;
+            }
             if (!user.accountInfo.googleId) {
                 user.accountInfo.googleId = profile.id;
-                await user.save();
             }
+            await user.save();
             return done(null, user);
         }
 
@@ -43,8 +50,10 @@ passport.use(new GoogleStrategy({
                 firstName: profile.name.givenName,
                 lastName: profile.name.familyName,
                 email: profile.emails[0].value,
+                profilePicture: googlePhoto,
                 googleId: profile.id,
-                accessLevel: 1
+                accessLevel: 1,
+                isVerified: true
             }
         });
         await newUser.save();

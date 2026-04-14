@@ -9,7 +9,7 @@ h1, h2, h3, h4, p, input, a, span, button, label, textarea {
 }
 
 header {
-  margin: 8px;
+  margin: 8px 8px 0 8px;
 }
 
 header, main {
@@ -27,6 +27,7 @@ html, body {
   padding: 0;
   height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 footer {
@@ -49,6 +50,8 @@ footer p {
 main {
   margin: 8px;
   background: transparent !important;
+  height: calc(100% - 120px);
+  overflow-y: auto;
 }
 
 /*Classes*/
@@ -104,9 +107,8 @@ main {
   border-radius: 40px;
   padding: 15px;
   margin: 10px;
-  width: 100%;
+  width: calc(100% - 20px);
   max-width: 345px;
-  height: 100%;
   max-height: 785px;
 }
 .hero h2 {
@@ -156,7 +158,7 @@ main {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 40px;
-  width: 100%;
+  width: calc(100% - 20px);
   max-width: 345px;
   padding: 15px;
   margin: 10px;
@@ -329,14 +331,14 @@ main {
   grid-column: 1/4;
   grid-row: 1/2;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 5px auto;
 }
 .site-card .card_title h3 {
   grid-column: 1/2;
   grid-row: 1/2;
 }
 .site-card .card_title span {
-  grid-column: 2/3;
+  grid-column: 3/4;
   grid-row: 1/2;
   max-height: 18px;
   align-self: center;
@@ -461,13 +463,13 @@ main {
   margin-top: 10px;
   grid-column: 1/4;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 5px auto;
 }
 .weekly-card .card_title h3 {
   grid-column: 1/2;
 }
 .weekly-card .card_title span {
-  grid-column: 2/3;
+  grid-column: 3/4;
   max-height: 18px;
   align-self: center;
 }

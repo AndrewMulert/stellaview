@@ -58,19 +58,30 @@ async function handleRegister(event) {
     }
 }
 
-function updateModalView(user) {
+export function updateModalView(user) {
     const loggedOutView = document.getElementById('logged_out_view');
     const loggedInView = document.getElementById('logged_in_view');
     const welcomeUser = document.getElementById('welcome_user');
-    window.updateModalView = updateModalView;
+    const profileSvgImg = document.querySelector('#profile_svg image');
+    /*window.updateModalView = updateModalView;*/
 
     if (user) {
         if (loggedOutView) loggedOutView.classList.add('hidden');
         if (loggedInView) loggedInView.classList.remove('hidden');
         if (welcomeUser) welcomeUser.textContent = `Welcome, ${user.accountInfo.firstName}`;
+
+        if (profileSvgImg) {
+            profileSvgImg.setAttribute('href', user.accountInfo.profilePicture || '/images/icon_logged_in.svg'); 
+            profileSvgImg.style.clipPath = 'circle(50%)';
+        }
     } else {
         if (loggedOutView) loggedOutView.classList.remove('hidden');
         if (loggedInView) loggedInView.classList.add('hidden');
+
+        if (profileSvgImg) {
+            profileSvgImg.setAttribute('href', '/images/icon_user.svg');
+            profileSvgImg.style.clipPath = 'none';
+        }
     }
 
     if (user && user.accountInfo.accessLevel >= 10) {
@@ -339,10 +350,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
             localStorage.removeItem('stella_session');
+            window.currentUser = null;
             try {
-                await fetch('/api/user/logout', { method: 'POST' });
+                await fetch('/api/user/logout', { method: 'GET' });
                 window.location.reload();
             } catch (err){
+                console.error("Logout failed:", err);
                 window.location.href = '/';
             }
         });
