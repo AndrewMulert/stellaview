@@ -153,6 +153,9 @@ main {
   grid-column: 3/4;
 }
 .modal_overlay {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
   background-image: linear-gradient(rgba(53, 53, 53, 0.5), rgba(21, 21, 21, 0.5));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

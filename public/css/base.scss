@@ -106,14 +106,6 @@ main{
     }
 }
 
-.cta_btn{
-    padding: 10px;
-    border-radius: 15px;
-    @include glassBlur($color1: rgba(207, 207, 207, 0.5), $color2: rgba(207, 207, 207, 0.5));
-    color: $black;
-    font-weight: 700;
-}
-
 .drop-down-message{
     color: $white;
     text-align: center;
@@ -181,6 +173,9 @@ main{
     }
 
     &_overlay{
+        position: fixed;
+        z-index: 1000;
+        margin: 0;
         @include glassBlur($color1: rgba(53, 53, 53, 0.5), $color2: rgba(21, 21, 21, 0.5));
         border-radius: 40px;
         width: calc(100% - 20px);
@@ -670,33 +665,129 @@ main{
     font-weight: 400;
 }
 
-#logged_in_view{
-    grid-column: 2 /3;
-    grid-row: 2 /3;
-    display: grid;
-    grid-template-rows: repeat(3, auto);
+#logged{
+    &_in_view{
+        grid-column: 2 /3;
+        grid-row: 2 /3;
+        display: grid;
+        grid-template-rows: repeat(3, auto);
 
-    h2{
-        grid-row: 1 /2;
-        margin-right: auto;
-        margin-left: auto;
-        color: $white;
-    }
-
-    a {
-        grid-row: 3 /4;
-        margin-right: auto;
-        margin-left: auto;
-        color: $white;
-        text-decoration: none;
-
-        &:hover{
+        h2{
+            grid-row: 1 /2;
+            margin-right: auto;
+            margin-left: auto;
             color: $white;
         }
 
-        &:visited{
+        a {
+            grid-row: 3 /4;
+            margin-right: auto;
+            margin-left: auto;
             color: $white;
             text-decoration: none;
+
+            &:hover{
+                color: $white;
+            }
+
+            &:visited{
+                color: $white;
+                text-decoration: none;
+            }
+        }
+    }
+
+    &_out_view{
+        grid-column: 2 /3;
+        grid-row: 2 /3;
+        display: grid;
+        grid-template-rows: repeat(2, auto) 10px auto 10px auto;
+
+        h2{
+            grid-row: 1 /2;
+            margin-right: auto;
+            margin-left: auto;
+            color: $white;
+        }
+
+        a {
+            color: $white;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 10px 20px;
+
+            &:hover{
+                color: $white;
+            }
+
+            &:visited{
+                color: $white;
+                text-decoration: none;
+            }
+        }
+
+        .auth_divider{
+            grid-row: 4 /5;
+            color: $white;
+            text-align: center;
+        }
+
+        .login_options{
+            grid-row: 6 /7;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+
+            .google_btn, #toggle_auth_mode {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                margin: 0;
+                text-align: center;
+                padding: 0 20px;
+                white-space: nowrap;
+                max-width: 200px;
+                height: 44px;
+                box-sizing: border-box;
+                border-radius: 12px;
+            }
+
+            .google_btn {
+                position: relative;
+                gap: 10px;
+
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid $white-transparent;
+                background: rgba(0, 0, 0, 0.625);
+
+                span { 
+                    flex-shrink: 0;
+                }
+
+                &::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    z-index: -1;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    background-image: linear-gradient(rgba(66, 133, 244, 0.625), transparent);
+                    animation: googleColors 8s ease-in-out infinite;
+                }
+
+                svg {
+                    flex-shrink: 0;
+                    display: block;
+                }
+            }
+
+            #toggle_auth_mode {
+                @include glassBlur(rgba(255, 255, 255, 0.1), rgba(131, 131, 131, 0.1))
+            }
         }
     }
 }
@@ -717,9 +808,6 @@ main{
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        margin-right: 5px;
-        margin-top: 10px;
-        margin-bottom: 10px;
 
         &.has-profile-pic #profile_svg{
                 display: none !important;
@@ -728,6 +816,64 @@ main{
 
         #profile_svg {
             pointer-events: none;
+        }
+    }
+}
+
+#register_form{
+    display: grid;
+    grid-template-rows: 31px 5px 31px 5px 37px;
+
+    .cta_btn{
+        width: 150px;
+        height: 37px;
+        align-self: center;
+        margin-right: auto;
+        margin-left: auto;
+        grid-row: 5 /6;
+        padding: 10px;
+        border-radius: 15px;
+        @include glassBlur(rgba(255, 255, 255, 0.5), rgba(131, 131, 131, 0.5));
+        color: $black;
+        font-weight: 700;
+    }
+
+    #name_fields {
+        grid-column: 1 /2;
+        grid-row: 1 /2;
+        display: grid;
+        grid-template-columns: 150px 5px 150px;
+
+        input {
+            border-radius: 10px;
+            padding: 5px;
+
+            &:first-child{
+                grid-column: 1 /2;
+            }
+
+            &:last-child{
+                grid-column: 3 /4;
+            }
+        }
+    }
+
+    #information_fields {
+        grid-column: 1 /2;
+        grid-row: 3 /4;
+        display: grid;
+        grid-template-columns: 150px 5px 150px;
+
+        input {
+            border-radius: 10px;
+            padding: 5px;
+
+            &:first-child{
+                grid-column: 1 /2;
+            }
+            &:last-child{
+                grid-column: 3 /4;
+            }
         }
     }
 }
@@ -808,5 +954,24 @@ main{
 
     100% {
         transform: rotate(360deg);
+    }
+}
+
+@keyframes googleColors {
+    0%, 100% {
+        opacity: 0.3;
+        background-color: rgba(66, 133, 244, 0.625);
+    }
+    25% {
+        opacity: 0.3;
+        background-color:rgba(234, 67, 53, 0.625);
+    }
+    50% {
+        opacity: 0.3;
+        background-color: rgba(251, 188, 4, 0.625);
+    }
+    75% {
+        opacity: 0.3;
+        background-color: rgba(52, 168, 83, 0.625);
     }
 }

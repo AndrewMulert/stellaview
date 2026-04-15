@@ -80,17 +80,6 @@ main {
   align-self: center;
 }
 
-.cta_btn {
-  padding: 10px;
-  border-radius: 15px;
-  background-image: linear-gradient(rgba(207, 207, 207, 0.5), rgba(207, 207, 207, 0.5));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #000000;
-  font-weight: 700;
-}
-
 .drop-down-message {
   color: #ffffff;
   text-align: center;
@@ -153,6 +142,9 @@ main {
   grid-column: 3/4;
 }
 .modal_overlay {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
   background-image: linear-gradient(rgba(53, 53, 53, 0.5), rgba(21, 21, 21, 0.5));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -605,6 +597,88 @@ main {
   color: #ffffff;
   text-decoration: none;
 }
+#logged_out_view {
+  grid-column: 2/3;
+  grid-row: 2/3;
+  display: grid;
+  grid-template-rows: repeat(2, auto) 10px auto 10px auto;
+}
+#logged_out_view h2 {
+  grid-row: 1/2;
+  margin-right: auto;
+  margin-left: auto;
+  color: #ffffff;
+}
+#logged_out_view a {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+#logged_out_view a:hover {
+  color: #ffffff;
+}
+#logged_out_view a:visited {
+  color: #ffffff;
+  text-decoration: none;
+}
+#logged_out_view .auth_divider {
+  grid-row: 4/5;
+  color: #ffffff;
+  text-align: center;
+}
+#logged_out_view .login_options {
+  grid-row: 6/7;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+#logged_out_view .login_options .google_btn, #logged_out_view .login_options #toggle_auth_mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  text-align: center;
+  padding: 0 20px;
+  white-space: nowrap;
+  max-width: 200px;
+  height: 44px;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+#logged_out_view .login_options .google_btn {
+  position: relative;
+  gap: 10px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.625);
+}
+#logged_out_view .login_options .google_btn span {
+  flex-shrink: 0;
+}
+#logged_out_view .login_options .google_btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 12px;
+  overflow: hidden;
+  background-image: linear-gradient(rgba(66, 133, 244, 0.625), transparent);
+  animation: googleColors 8s ease-in-out infinite;
+}
+#logged_out_view .login_options .google_btn svg {
+  flex-shrink: 0;
+  display: block;
+}
+#logged_out_view .login_options #toggle_auth_mode {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(131, 131, 131, 0.1));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 
 #nav_clock {
   display: none;
@@ -624,9 +698,6 @@ main {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  margin-right: 5px;
-  margin-top: 10px;
-  margin-bottom: 10px;
 }
 #nav_profile.has-profile-pic #profile_svg {
   display: none !important;
@@ -634,6 +705,59 @@ main {
 }
 #nav_profile #profile_svg {
   pointer-events: none;
+}
+
+#register_form {
+  display: grid;
+  grid-template-rows: 31px 5px 31px 5px 37px;
+}
+#register_form .cta_btn {
+  width: 150px;
+  height: 37px;
+  align-self: center;
+  margin-right: auto;
+  margin-left: auto;
+  grid-row: 5/6;
+  padding: 10px;
+  border-radius: 15px;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(131, 131, 131, 0.5));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #000000;
+  font-weight: 700;
+}
+#register_form #name_fields {
+  grid-column: 1/2;
+  grid-row: 1/2;
+  display: grid;
+  grid-template-columns: 150px 5px 150px;
+}
+#register_form #name_fields input {
+  border-radius: 10px;
+  padding: 5px;
+}
+#register_form #name_fields input:first-child {
+  grid-column: 1/2;
+}
+#register_form #name_fields input:last-child {
+  grid-column: 3/4;
+}
+#register_form #information_fields {
+  grid-column: 1/2;
+  grid-row: 3/4;
+  display: grid;
+  grid-template-columns: 150px 5px 150px;
+}
+#register_form #information_fields input {
+  border-radius: 10px;
+  padding: 5px;
+}
+#register_form #information_fields input:first-child {
+  grid-column: 1/2;
+}
+#register_form #information_fields input:last-child {
+  grid-column: 3/4;
 }
 
 #results-container {
@@ -709,5 +833,23 @@ main {
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+@keyframes googleColors {
+  0%, 100% {
+    opacity: 0.3;
+    background-color: rgba(66, 133, 244, 0.625);
+  }
+  25% {
+    opacity: 0.3;
+    background-color: rgba(234, 67, 53, 0.625);
+  }
+  50% {
+    opacity: 0.3;
+    background-color: rgba(251, 188, 4, 0.625);
+  }
+  75% {
+    opacity: 0.3;
+    background-color: rgba(52, 168, 83, 0.625);
   }
 }/*# sourceMappingURL=base.css.map */

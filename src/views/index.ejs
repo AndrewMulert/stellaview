@@ -10,23 +10,22 @@
                     <input type="text" id="first_name" placeholder="First Name" required>
                     <input type="text" id="last_name" placeholder="Last Name" required>
                 </div>
-                <input type="email" id="email_input" placeholder="Email" required>
-                <input type="password" id="password_input" placeholder="Password" required>
+                <div id="information_fields">
+                    <input type="email" id="email_input" placeholder="Email" required>
+                    <input type="password" id="password_input" placeholder="Password" required>
+                </div>
                 <button type="submit" class="cta_btn">Create Account</button>
             </form>
-
             <div class="auth_divider">
                 <span>OR</span>
             </div>
-
-            <a href="/api/user/auth/google" class="google_btn">
-                <svg id="google_svg" width="20px" height="20px"><image alt="Google Logo" width="20px" height="20px" href="/images/login_google.svg"></image></svg>
-                Sign in with Google
-            </a>
-
-            <p class="auth_toggle_text"> 
-                Already have an account? <a href="#" id="toggle_auth_mode">Log In</a>
-            </p>
+            <div class="login_options">
+                <a href="/api/user/auth/google" class="google_btn">
+                    <svg width="25px" height="25px" viewBox="0 0 25 25"><image alt="Google Logo" width="25px" height="25px" href="/images/login_google.svg"></image></svg>
+                    <span>Sign in with Google</span>
+                </a>
+                <a href="#" id="toggle_auth_mode">Log In</a>
+            </div>
         </div>
 
         <div id="logged_in_view" class="hidden">

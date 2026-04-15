@@ -337,6 +337,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         profileBtn.addEventListener('click', (e) => {
             e.preventDefault();
             modal.classList.remove('hidden');
+
+            if (!modal.classList.contains('hidden')) {
+                positionMenu('profile_menu', 'auth_modal');
+            }
         });
     }
 
@@ -393,3 +397,24 @@ async function saveHomeLocation(addressString) {
         alert("Could not find that location.");
     }
 }
+
+function positionMenu (anchorId, menuId) {
+    const anchor = document.getElementById(anchorId);
+    const menu = document.getElementById(menuId);
+
+    if (anchor && menu) {
+        const rect = anchor.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = `${rect.bottom + 20}px`
+
+        const menuWidth = menu.offsetWidth || 345;
+        menu.style.left = `${Math.max(10, rect.right - menuWidth)}px`
+    }
+}
+
+window.addEventListener('resize', () => {
+    const modal = document.getElementById('auth_modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        positionMenu('profile_menu', 'auth_modal');
+    }
+})
