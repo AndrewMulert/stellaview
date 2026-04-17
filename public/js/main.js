@@ -37,8 +37,72 @@ function timeUpdater() {
     }
 };
 
+function updateThemeByTime() {
+    const now = new Date();
+    const totalMinutes = (now.getHours() * 60) + now.getMinutes();
+    const body = document.body;
+
+    const themes = [
+        { name: 'dawn',  startMin: 180,  color1: [208, 179, 255], color2: [151, 87, 255]},
+        { name: 'day',   startMin: 360,  color1: [122, 255, 235], color2: [179, 249, 255]},
+        { name: 'dusk',  startMin: 1080, color1: [194, 137, 47],  color2: [166, 124, 58]},
+        { name: 'night', startMin: 1260, color1: [60, 0, 133],    color2: [0, 0, 102]}
+    ];
+
+    let currentIdx = themes.length - 1;
+    for (let i = 0; i < themes.length; i++) {
+        if (totalMinutes >= themes[i].startMin) {
+            currentIdx = i;
+        }
+    }
+
+    const nextIdx = (currentIdx + 1) % themes.length;
+    const currentTheme = themes[currentIdx];
+    const nextTheme = themes[nextIdx];
+
+    let diff = nextTheme.startMin - currentTheme.startMin;
+    if (diff < 0) diff += 1440;
+
+    let progress = (totalMinutes - currentTheme.startMin);
+    if (progress < 0) progress += 1440;
+    const ratio = progress / diff;
+    
+    const lerp = (a, b, r) => Math.round(a + (b - a) * r);
+    
+    const r1 = lerp(currentTheme.color1[0], nextTheme.color1[0], ratio);
+    const g1 = lerp(currentTheme.color1[1], nextTheme.color1[1], ratio);
+    const b1 = lerp(currentTheme.color1[2], nextTheme.color1[2], ratio);
+
+    const r2 = lerp(currentTheme.color2[0], nextTheme.color2[0], ratio);
+    const g2 = lerp(currentTheme.color2[1], nextTheme.color2[1], ratio);
+    const b2 = lerp(currentTheme.color2[2], nextTheme.color2[2], ratio);
+
+    const getContrastColor = (r, g, b) => {
+        const realR = r * 0.5;
+        const realG = g * 0.5;
+        const realB = b * 0.5;
+        const brightness = (realR * 299 + realG * 587 + realB * 114) / 1000;
+        const decision = (brightness > 125) ? '#000000' : '#FFFFFF';
+        console.log(`Brightness: ${brightness.toFixed(2)} | Color: ${decision}`);
+        return decision;
+
+    }
+
+    const textColor = getContrastColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
+
+    const invertValue = (textColor === '#000000') ? '100%' : '0%';
+    const root = document.documentElement;
+    root.style.setProperty('--bg-start', `rgba(${r1}, ${g1}, ${b1}, 0.5)`);
+    root.style.setProperty('--bg-end', `rgba(${r2}, ${g2}, ${b2}, 0.5)`);
+
+    root.style.setProperty('--accent-color', textColor);
+    root.style.setProperty('--icon-invert', invertValue);
+}
+
 timeUpdater();
+updateThemeByTime();
 setInterval(timeUpdater, 1000);
+setInterval(updateThemeByTime, 60000);
 
 let trainedModel = null;
 let currentSearchId = 0;

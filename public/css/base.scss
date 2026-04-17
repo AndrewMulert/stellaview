@@ -64,12 +64,13 @@ footer{
     bottom: 0;
     width: 100%;
     z-index: 20;
-    @include glassBlur($color2: $medium-secondary-transparent);
+    @include glassBlur(var(--bg-start), var(--bg-end));
+    background-image: linear-gradient(var(--bg-start), var(--bg-end)) !important;
     pointer-events: auto;
     & p{
         padding: 15px;
         margin: 0px;
-        color: $white;
+        color: var(--accent-color);
     }
 }
 
@@ -107,7 +108,7 @@ main{
 }
 
 .drop-down-message{
-    color: $white;
+    color: var(--accent-color);
     text-align: center;
     margin: 0px;
     font-weight: 300;
@@ -115,17 +116,21 @@ main{
 }
 
 .hero{
-    @include glassBlur;
+    @include glassBlur(var(--bg-start), var(--bg-end));
+    background-image: linear-gradient(var(--bg-start), var(--bg-end)) !important;
     border-radius: 40px;
     padding: 15px;
     margin: 10px;
     width: calc(100% - 20px);
     max-width: 345px;
     max-height: 785px;
-
+    transition: background-color 0.5s linear, color 0.5s ease;
 
     & h2{
-        color: $white;
+        &#hero_decision, &#section_title {
+            color: var(--accent-color);
+        }
+        transition: background-color 0.5s linear, color 0.5s ease;
         
         &#hero_decision{
             font-style: italic;
@@ -146,6 +151,11 @@ main{
 
 .hero, .modal_overlay, .nav_bar, footer p, button, input, a, .ai-status {
     pointer-events: auto;
+}
+
+.hero, .site-card, .nav_clock_time {
+    color: var(--accent-color);
+    transition: background-color 0.5s linear, color 0.5s ease;
 }
 
 .hidden {
@@ -190,9 +200,11 @@ main{
         margin: 0px 10px 0px 10px;
     }
     &_clock_time{
-        color: $white;
-        @include glassBlur;
-        background-color: $darker-secondary;
+        color: var(--accent-color);
+        transition: background-color 0.5s linear, color 0.5s ease;
+        @include glassBlur(var(--bg-start), var(--bg-end));
+        background-image: linear-gradient(var(--bg-start), var(--bg-end)) !important;
+        /*background-color: $darker-secondary;*/
         border-radius: 25px;
         height: 30px;
         width: 100px;
@@ -321,7 +333,8 @@ main{
     display: grid;
     grid-template-columns: 1fr 5px 1fr;
     grid-template-rows: auto 15px repeat(3, 1fr) 15px repeat(2, 1fr);
-    color: $white;
+    color: var(--accent-color);
+    transition: background-color 0.5s linear, color 0.5s ease;
     margin-bottom: 20px;
 
     div {
@@ -344,6 +357,11 @@ main{
         margin: 0px;
     }
 
+    p {
+        color: var(--accent-color) !important;
+        transition: background-color 0.5s linear, color 0.5s ease;
+    }
+
     .card_score{
         font-weight: 400;
         font-size: 14px;
@@ -359,6 +377,8 @@ main{
         margin-top: 0px;
         margin-bottom: 0px;
         justify-content: center;
+        color: var(--accent-color);
+        transition: background-color 0.5s linear, color 0.5s ease;
     }
 
     .card_title{
@@ -370,6 +390,8 @@ main{
         h3{
             grid-column: 1 /2;
             grid-row: 1 /2;
+            color: var(--accent-color);
+            transition: background-color 0.5s linear, color 0.5s ease;;
         }
 
         span{
@@ -415,17 +437,19 @@ main{
         grid-row: 8 /9;
 
         a{
-            color: $white;
+            color: var(--accent-color) !important;
             text-decoration: none;
         }
 
         a:visited {
-            color: $white;
+            color: var(--accent-color);
         }
 
         .card_link{
             grid-column: 3 /4;
             font-size: 14px;
+            color: var(--accent-color);
+            transition: background-color 0.5s linear, color 0.5s ease;
         }
     }
 
@@ -447,6 +471,13 @@ main{
         }
     }
 }
+
+.site-card, .drop-down-info{
+    img, svg {
+        filter: invert(var(--icon-invert)) !important;
+        transition: filter 0.5s ease;
+    }
+ }
 
 .spinner {
     animation: spin 1s linear infinite;
@@ -470,7 +501,7 @@ main{
         display: grid;
         grid-template-columns: 1fr 5px 1fr;
         grid-template-rows: auto 15px repeat(3, 1fr);
-        color: $white;
+        color: var(--accent-color) !important;
         margin-bottom: 20px;
 
         div {
@@ -549,12 +580,12 @@ main{
             grid-row: 5 /6;
 
             a{
-                color: $white;
+                color: var(--accent-color) !important;
                 text-decoration: none;
             }
 
             a:visited {
-                color: $white;
+                color: var(--accent-color) !important;
             }
 
             .card_link{
@@ -583,6 +614,7 @@ main{
     }
 
     &_stats{
+        color: var(--accent-color) !important;
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-template-rows: repeat(3, 1fr);
@@ -626,16 +658,16 @@ main{
             grid-row: 3 /4;
 
             a{
-                color: $white;
+                color: var(--accent-color) !important;
                 text-decoration: none;
             }
 
             a:hover{
-                color: $white;
+                color: var(--accent-color) !important;
             }
 
             a:visited{
-                color: $white;
+                color: var(--accent-color) !important;
             }
         }
     }
@@ -824,6 +856,10 @@ main{
     display: grid;
     grid-template-rows: 31px 5px 31px 5px 37px;
 
+    input {
+        border: none;
+    }
+
     .cta_btn{
         width: 150px;
         height: 37px;
@@ -886,6 +922,7 @@ main{
     padding: 10px;
     border-radius: 25px;
     color: $white;
+    transition: background-color 0.5s linear, color 0.5s ease;
     @include glassBlur($color1: rgba(60, 0, 133, 0.5), $color2: rgba(0, 0, 102, 0.5));
     overflow: scroll;
     overflow-x: hidden;
