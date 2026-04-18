@@ -5,6 +5,7 @@ import { getActivePrefs } from './config.js';
 import { trainStellaBrain, predictWithBrain } from './brain.js';
 import * as api from './api.js';
 import { updateModalView } from './auth.js';
+import SunCalc from "https://esm.sh/suncalc@1.9.0";
 
 const decisionSpan = document.querySelector("#hero_decision");
 const SEARCH_COOLDOWN = 15000;
@@ -12,6 +13,7 @@ const timeSpan = document.querySelector("#home_time");
 const yearSpan = document.querySelector("#year");
 let lastSearchTime = 0;
 let wakeLock = null;
+let cachedPrefs = null;
 
 if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
@@ -19,6 +21,21 @@ if (yearSpan) {
 
 if (decisionSpan) {
     decisionSpan.textContent = "The universe is calling; let’s find where it’s clearest.";
+}
+
+function normalizeCoords(location) {
+    if (Array.isArray(location)) {
+        return { lat: parseFloat(location[0]), lon: parseFloat(location[1]) };
+    }
+
+    if (location && typeof location === 'object') {
+        return {
+            lat: parseFloat(location.lat || location.latitude),
+            lon: parseFloat(location.lon || location.longitude || location.lng) 
+        };
+    }
+
+    return { lat: 44.4280, lon: -110.5885 };
 }
 
 function timeUpdater() {
@@ -37,17 +54,36 @@ function timeUpdater() {
     }
 };
 
-function updateThemeByTime() {
+async function updateThemeByTime() {
     const now = new Date();
-    const totalMinutes = (now.getHours() * 60) + now.getMinutes();
+
+    if (!cachedPrefs) {
+        cachedPrefs = await getActivePrefs(window.currentUser);
+    }
+    
+    const prefs = await getActivePrefs(window.currentUser);
+    
+    const coords = normalizeCoords(prefs?.homeLocation);
+    const sunTimes = SunCalc.getTimes(now, coords.lat, coords.lon);
     const body = document.body;
 
+    const getMin = (date) => {
+        if (!(date instanceof Date) || isNaN(date)) return 0;
+        return date.getHours() * 60 + date.getMinutes();
+    }
+    const sunrise = getMin(sunTimes.sunrise);
+    const goldenHour = getMin(sunTimes.goldenHourEnd);
+    const sunset = getMin(sunTimes.sunsetStart);
+    const nightStart = getMin(sunTimes.nauticalDusk);
+
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+
     const themes = [
-        { name: 'dawn',  startMin: 180,  color1: [208, 179, 255], color2: [151, 87, 255]},
-        { name: 'day',   startMin: 360,  color1: [122, 255, 235], color2: [179, 249, 255]},
-        { name: 'dusk',  startMin: 1080, color1: [194, 137, 47],  color2: [166, 124, 58]},
-        { name: 'night', startMin: 1260, color1: [60, 0, 133],    color2: [0, 0, 102]}
-    ];
+        { name: 'dawn',  startMin: sunrise - 60, color1: [75, 0, 130], color2: [0, 133, 113]},
+        { name: 'day',   startMin: goldenHour,  color1: [0, 133, 113], color2: [0, 70, 77]},
+        { name: 'dusk',  startMin: sunset, color1: [0, 70, 77],  color2: [200, 90, 40]},
+        { name: 'night', startMin: nightStart,     color1: [10, 15, 30],   color2: [0, 0, 10]}
+    ].sort((a, b) => a.startMin - b.startMin);
 
     let currentIdx = themes.length - 1;
     for (let i = 0; i < themes.length; i++) {
@@ -63,11 +99,26 @@ function updateThemeByTime() {
     let diff = nextTheme.startMin - currentTheme.startMin;
     if (diff < 0) diff += 1440;
 
+    let ratio = 0;
+    if (diff > 0) {
+        let progress = (totalMinutes - currentTheme.startMin);
+        if (progress < 0) progress += 1440;
+        ratio = progress / diff;
+    }
+
+    ratio = Math.max(0, Math.min(1, ratio));
+
     let progress = (totalMinutes - currentTheme.startMin);
     if (progress < 0) progress += 1440;
-    const ratio = progress / diff;
     
-    const lerp = (a, b, r) => Math.round(a + (b - a) * r);
+    if (ratio % 0.1 < 0.01) {
+        console.log(`Theme Update: ${currentTheme.name} (${(ratio * 100).toFixed(1)}%)`);
+    }
+
+    const lerp = (a, b, r) => {
+        const result = Math.round(a + (b - a) * r);
+        return isNaN(result) ? a : result;
+    }
     
     const r1 = lerp(currentTheme.color1[0], nextTheme.color1[0], ratio);
     const g1 = lerp(currentTheme.color1[1], nextTheme.color1[1], ratio);
@@ -83,7 +134,12 @@ function updateThemeByTime() {
         const realB = b * 0.5;
         const brightness = (realR * 299 + realG * 587 + realB * 114) / 1000;
         const decision = (brightness > 125) ? '#000000' : '#FFFFFF';
-        console.log(`Brightness: ${brightness.toFixed(2)} | Color: ${decision}`);
+        
+        if (window.lastThemeColor !== decision) {
+            console.log(`🌓 UI Contrast Shift: ${decision} (Brightness: ${brightness.toFixed(2)})`);
+            window.lastThemeColor = decision;
+        }
+
         return decision;
 
     }
@@ -100,9 +156,7 @@ function updateThemeByTime() {
 }
 
 timeUpdater();
-updateThemeByTime();
 setInterval(timeUpdater, 1000);
-setInterval(updateThemeByTime, 60000);
 
 let trainedModel = null;
 let currentSearchId = 0;
@@ -200,6 +254,8 @@ async function initializeUserSession() {
             console.log("✅ Welcome back, " + user.accountInfo.firstName);
             window.currentUser = user;
             updateModalView(user);
+
+            await updateThemeByTime();
 
             const cache = user.preferences?.cachedNearbySites;
             if (cache && cache.sites && cache.sites.length > 0) {
@@ -805,9 +861,14 @@ async function startApp() {
     await initializeUserSession();
 
     const prefs = await getActivePrefs(window.currentUser);
-    const home = prefs.homeLocation || { lat: 44.4280, lon: -110.5885 };
+    const home = normalizeCoords(prefs.homeLocation);
 
-    window.initMap(home.lat, home.lon);
+    if (window.initMap){
+        window.initMap(home.lat, home.lon);
+    }
+    
+    await updateThemeByTime();
+    setInterval(updateThemeByTime, 60000);
 
     await initAI();
     await runStargazingEngine();

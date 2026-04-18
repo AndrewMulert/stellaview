@@ -9,15 +9,22 @@ export const DEFAULT_PREFS = {
     homeLocation: { lat: 44.4605, lon: -110.8281, label: "Yellowstone National Park" }
 };
 
+let lastSource = null;
+
 /**
  * @param {Object} loggedInUser
  */
 
 export async function getActivePrefs(loggedInUser = null) {
     let prefs;
+    let currentSource = "";
 
     if (loggedInUser && loggedInUser.preferences) {
-        console.log("Using Database Preferences");
+        currentSource = "database";
+        if (lastSource !== currentSource) {
+            console.log("🗄️ Using Database Preferences");
+            lastSource = currentSource;
+        }
         prefs = { 
             ...DEFAULT_PREFS, 
             ...loggedInUser.preferences,
@@ -33,10 +40,19 @@ export async function getActivePrefs(loggedInUser = null) {
 
     const saved = localStorage.getItem('stellaview_prefs');
     if (saved) {
-        console.log("Using LocalStorage Preferences");
+        currentSource = "localstorage";
+        if (lastSource !== currentSource) {
+            console.log("💾 Using LocalStorage Preferences");
+            lastSource = currentSource;
+        }
         return JSON.parse(saved);
     }
 
-    console.log("Using Default System Preferences");
+    currentSource = "default";
+    if (lastSource !== currentSource) {
+        console.log("⚙️ Using Default System Preferences");
+        lastSource = currentSource;
+    }
+
     return { DEFAULT_PREFS, accessLevel: 0 };
 }
