@@ -60,7 +60,7 @@ async function updateThemeByTime() {
     if (!cachedPrefs) {
         cachedPrefs = await getActivePrefs(window.currentUser);
     }
-    
+
     const prefs = await getActivePrefs(window.currentUser);
     
     const coords = normalizeCoords(prefs?.homeLocation);
@@ -72,6 +72,7 @@ async function updateThemeByTime() {
         return date.getHours() * 60 + date.getMinutes();
     }
     const sunrise = getMin(sunTimes.sunrise);
+    const solarNoon = getMin(sunTimes.solarNoon) || 720;
     const goldenHour = getMin(sunTimes.goldenHourEnd);
     const sunset = getMin(sunTimes.sunsetStart);
     const nightStart = getMin(sunTimes.nauticalDusk);
@@ -80,9 +81,11 @@ async function updateThemeByTime() {
 
     const themes = [
         { name: 'dawn',  startMin: sunrise - 60, color1: [75, 0, 130], color2: [0, 133, 113]},
-        { name: 'day',   startMin: goldenHour,  color1: [0, 133, 113], color2: [0, 70, 77]},
+        { name: 'morning', startMin: goldenHour, color1: [0, 133, 113], color2: [0, 120, 150]},
+        { name: 'noon',  startMin: solarNoon - 30, color1: [0, 150, 200], color2: [100, 200, 255]},
+        { name: 'afternoon', startMin: solarNoon + 120, color1: [0, 120, 150], color2: [0, 70, 77]},
         { name: 'dusk',  startMin: sunset, color1: [0, 70, 77],  color2: [200, 90, 40]},
-        { name: 'night', startMin: nightStart,     color1: [10, 15, 30],   color2: [0, 0, 10]}
+        { name: 'night', startMin: nightStart, color1: [10, 15, 30],   color2: [0, 0, 10]}
     ].sort((a, b) => a.startMin - b.startMin);
 
     let currentIdx = themes.length - 1;
