@@ -128,7 +128,7 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60) {
         return geoCache[cacheId].data;
     }
 
-    const query = `[out:json][timeout:25];
+    const query = `[out:json][timeout:50];
     (
         nwr["leisure"~"nature_reserve"](around:${radiusMeters},${lat},${lon});
         nwr["boundary"~"national_park|protected_area|wilderness_area"](around:${radiusMeters},${lat},${lon});
@@ -147,7 +147,7 @@ export async function getNearbyDarkPlaces(lat, lon, maxDriveTime = 60) {
     for (const baseUrl of mirrors) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const timeoutId = setTimeout(() => controller.abort(), 55000);
 
             const res = await fetch(`${baseUrl}?data=${encodeURIComponent(query)}`, {
                 signal: controller.signal
