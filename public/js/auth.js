@@ -112,10 +112,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeBtn = document.getElementById('close_modal');
     const registerForm = document.getElementById('register_form');
     const settingsBtn = document.getElementById('settings_btn');
-    const settingsModal = document.getElementById('settings_modal');
     const closeSettings = document.getElementById('close_settings');
     const settingsForm = document.getElementById('settings_form');
     const logoutBtn = document.getElementById('logout_btn');
+    const settingsModal = document.getElementById('settings_modal');
 
     let initialPrefs = {};
 
@@ -367,6 +367,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    });
+
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.classList.add('hidden');
+        }
+    });
 });
 
 async function updateUIForLoggedInUser() {
@@ -396,7 +408,7 @@ async function saveHomeLocation(addressString) {
     } else {
         alert("Could not find that location.");
     }
-}
+};
 
 function positionMenu (anchorId, menuId) {
     const anchor = document.getElementById(anchorId);
@@ -410,11 +422,12 @@ function positionMenu (anchorId, menuId) {
         const menuWidth = menu.offsetWidth || 345;
         menu.style.left = `${Math.max(10, rect.right - menuWidth)}px`
     }
-}
+};
 
 window.addEventListener('resize', () => {
     const modal = document.getElementById('auth_modal');
     if (modal && !modal.classList.contains('hidden')) {
         positionMenu('profile_menu', 'auth_modal');
     }
-})
+});
+
