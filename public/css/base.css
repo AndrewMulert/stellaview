@@ -459,7 +459,7 @@ main {
   -webkit-appearance: none;
   -moz-appearance: none;
        appearance: none;
-  width: 100%;
+  width: calc(100% - 22px);
   height: 8px;
   border-radius: 5px;
   outline: none;
@@ -823,6 +823,16 @@ main {
 }
 #nav_profile #profile_svg {
   pointer-events: none;
+}
+
+#pref_max_bortle {
+  background: linear-gradient(to right, #0022ff, #00ffff, #00ff00, #ffff00, #ff4400);
+}
+#pref_max_temp {
+  background: linear-gradient(to right, yellow, orange, red);
+}
+#pref_min_temp {
+  background: linear-gradient(to right, indigo, blue, cyan);
 }
 
 #register_form {

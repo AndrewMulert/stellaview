@@ -519,7 +519,7 @@ main{
 .slider {
     -webkit-appearance: none;
     appearance: none;
-    width: 100%;
+    width: calc(100% - 22px);
     height: 8px;
     border-radius: 5px;
     outline: none;
@@ -937,6 +937,24 @@ main{
 
         #profile_svg {
             pointer-events: none;
+        }
+    }
+}
+
+#pref{
+    &_max{
+        &_bortle{
+            background: linear-gradient(to right, #0022ff, #00ffff, #00ff00, #ffff00, #ff4400);
+        }
+
+        &_temp{
+            background: linear-gradient(to right, yellow, orange, red);
+        }
+    }
+
+    &_min{
+        &_temp{
+            background: linear-gradient(to right, indigo, blue, cyan);
         }
     }
 }
