@@ -315,19 +315,17 @@ main {
   position: relative;
   width: 95%;
   max-width: 320px;
-  height: auto;
-  max-height: 75vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 25px 10px 25px 25px;
+  height: 75vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  padding: 30px;
   border-radius: 40px;
   background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px 5px #59FFE5;
-  display: flex;
-  flex-direction: column;
+  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 .settings_large .close_btn {
   align-self: flex-end;
@@ -347,8 +345,11 @@ main {
   grid-template-rows: 20px 1fr 20px;
 }
 .settings_view {
-  grid-column: 2/3;
-  grid-row: 2/3;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 15px;
 }
 .settings_view h2 {
   color: #ffffff;
@@ -358,6 +359,18 @@ main {
 .settings_view p {
   color: #ffffff;
   padding-top: 0px;
+}
+.settings_view::-webkit-scrollbar {
+  width: 6px;
+}
+.settings_view::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin: 20px 0;
+}
+.settings_view::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 .site-card {
@@ -494,7 +507,7 @@ main {
   height: 8px;
   border-radius: 5px;
   outline: none;
-  background: linear-gradient(to right, #008571, #00464D);
+  background: linear-gradient(to right, var(--bg-glow), var(--bg-end));
 }
 .slider::-webkit-slider-runnable-track {
   width: 100%;
@@ -948,7 +961,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 10px;
+  padding-bottom: 20px;
 }
 #settings_modal {
   position: fixed !important;
@@ -979,31 +992,6 @@ main {
   background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: none !important;
   pointer-events: none;
-}
-#settings_view {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 15px;
-  margin-bottom: 10px;
-}
-#settings_view h2 {
-  margin-top: 0;
-}
-#settings_view::-webkit-scrollbar {
-  width: 6px;
-}
-#settings_view::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  margin: 10px 0;
-}
-#settings_view::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-}
-#settings_view::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
 }
 
 #stella-map {

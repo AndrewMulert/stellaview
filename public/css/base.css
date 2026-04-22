@@ -325,7 +325,7 @@ main {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px 5px #59FFE5;
+  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 .settings_large .close_btn {
   align-self: flex-end;
@@ -507,7 +507,7 @@ main {
   height: 8px;
   border-radius: 5px;
   outline: none;
-  background: linear-gradient(to right, #008571, #00464D);
+  background: linear-gradient(to right, var(--bg-glow), var(--bg-end));
 }
 .slider::-webkit-slider-runnable-track {
   width: 100%;

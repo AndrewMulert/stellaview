@@ -360,7 +360,7 @@ main{
         padding: 30px;
         border-radius: 40px;
         @include glassBlur($color1: rgba(53, 53, 53, 0.6), $color2: rgba(21, 21, 21, 0.6));
-        box-shadow: 0 0 15px 5px $base-secondary;
+        box-shadow: 0 0 15px 5px var(--bg-glow);
 
         .close_btn { 
             align-self: flex-end;
@@ -572,7 +572,7 @@ main{
     height: 8px;
     border-radius: 5px;
     outline: none;
-    background: linear-gradient(to right, $medium-secondary, $dark-secondary);
+    background: linear-gradient(to right, var(--bg-glow), var(--bg-end));
 
     &::-webkit-slider-runnable-track {
         width: 100%;

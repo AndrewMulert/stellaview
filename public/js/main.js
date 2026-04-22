@@ -147,12 +147,21 @@ async function updateThemeByTime() {
 
     }
 
+    const brighten = (r, g, b, factor = 0.4) => {
+        const newR = Math.min(255, Math.round(r + (255 - r) * factor));
+        const newG = Math.min(255, Math.round(g + (255 - g) * factor));
+        const newB = Math.min(255, Math.round(b + (255 - b) * factor));
+        return `${newR}, ${newG}, ${newB}`;
+    }
+
     const textColor = getContrastColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
+    const glowColor = brighten(r1, g1, b1, 0.5);
 
     const invertValue = (textColor === '#000000') ? '100%' : '0%';
     const root = document.documentElement;
     root.style.setProperty('--bg-start', `rgba(${r1}, ${g1}, ${b1}, 0.5)`);
     root.style.setProperty('--bg-end', `rgba(${r2}, ${g2}, ${b2}, 0.5)`);
+    root.style.setProperty('--bg-glow', `rgba(${glowColor}, 0.8)`);
 
     root.style.setProperty('--accent-color', textColor);
     root.style.setProperty('--icon-invert', invertValue);
