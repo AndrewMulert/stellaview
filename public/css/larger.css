@@ -290,8 +290,9 @@ main {
 }
 
 .settings_group {
-  display: grid;
-  grid-template-rows: repeat(2, auto);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .settings_group label {
   color: #ffffff;
@@ -309,6 +310,36 @@ main {
 .settings_group input {
   padding: 10px;
   border-radius: 15px;
+}
+.settings_large {
+  position: relative;
+  width: 95%;
+  max-width: 320px;
+  height: auto;
+  max-height: 75vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 25px 10px 25px 25px;
+  border-radius: 40px;
+  background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px 5px #59FFE5;
+  display: flex;
+  flex-direction: column;
+}
+.settings_large .close_btn {
+  align-self: flex-end;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.settings_large::-webkit-scrollbar {
+  width: 6px;
+}
+.settings_large::-webkit-scrollbar-thumb {
+  background: #008571;
+  border-radius: 10px;
 }
 .settings_modal {
   display: grid;
@@ -453,6 +484,50 @@ main {
 .site-card img, .site-card svg, .drop-down-info img, .drop-down-info svg {
   filter: invert(var(--icon-invert)) !important;
   transition: filter 0.5s ease;
+}
+
+.slider {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+       appearance: none;
+  width: calc(100% - 22px);
+  height: 8px;
+  border-radius: 5px;
+  outline: none;
+  background: linear-gradient(to right, #008571, #00464D);
+}
+.slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 5px;
+}
+.slider::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: linear-gradient(to right, #008571, #00464D);
+  border-radius: 5px;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #FFDB59;
+  border: 2px solid #000000;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -6px;
+}
+.slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #FFDB59;
+  border: 2px solid #000000;
+  border-radius: 50%;
+  cursor: pointer;
 }
 
 .spinner {
@@ -781,6 +856,16 @@ main {
   pointer-events: none;
 }
 
+#pref_max_bortle {
+  background: linear-gradient(to right, #0022ff, #00ffff, #00ff00, #ffff00, #ff4400);
+}
+#pref_max_temp {
+  background: linear-gradient(to right, yellow, orange, red);
+}
+#pref_min_temp {
+  background: linear-gradient(to right, indigo, blue, cyan);
+}
+
 #register_form {
   display: grid;
   grid-template-rows: 31px 5px 31px 5px 37px;
@@ -860,14 +945,65 @@ main {
 }
 
 #settings_form {
-  display: grid;
-  grid-template-rows: repeat(7, auto) 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 10px;
 }
 #settings_modal {
-  top: 50%;
-  left: 50%;
-  margin: 0;
-  transform: translate(-50%, -50%);
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+#settings_modal::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: none !important;
+  pointer-events: none;
+}
+#settings_view {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 15px;
+  margin-bottom: 10px;
+}
+#settings_view h2 {
+  margin-top: 0;
+}
+#settings_view::-webkit-scrollbar {
+  width: 6px;
+}
+#settings_view::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin: 10px 0;
+}
+#settings_view::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+#settings_view::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 #stella-map {
@@ -940,6 +1076,9 @@ main {
 @media screen and (min-width: 40em) {
   .nav_search_bar input {
     width: 250px;
+  }
+  .settings_large {
+    max-width: 420px;
   }
   #nav_clock {
     display: flex;
