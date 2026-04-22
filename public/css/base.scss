@@ -17,6 +17,8 @@ $info-good: #81ff57;
 $info-okay: #e3ff57;
 $info-bad: #ffb957;
 $info-terrible: #ff5757;
+$dark-slider: #400080;
+$light-slider: #ffff80;
 $white: #ffffff;
 $white-transparent: rgba(255, 255, 255, 0.1);
 $black: #000000;
@@ -342,10 +344,12 @@ main{
             resize: none;
             padding: 10px;
             border-radius: 15px;
+            border: none;
         }
         input{
             padding: 10px;
             border-radius: 15px;
+            border: none;
         }
     }
 
@@ -595,8 +599,9 @@ main{
         appearance: none;
         width: 20px;
         height: 20px;
-        background: $base-primary;
+        background: $light-slider;
         border: 2px solid $black;
+        mix-blend-mode: hard-light;
         border-radius: 50%;
         cursor: pointer;
         margin-top: -6px;
@@ -605,11 +610,12 @@ main{
     &::-moz-range-thumb {
         width: 20px;
         height: 20px;
-        background: $base-primary;
+        background: $light-slider;
         border: 2px solid $black;
+        mix-blend-mode: hard-light;
         border-radius: 50%;
         cursor: pointer;
-        }
+    }
 }
 
 .spinner {
@@ -994,16 +1000,49 @@ main{
     &_max{
         &_bortle{
             background: linear-gradient(to right, #0022ff, #00ffff, #00ff00, #ffff00, #ff4400);
+            &::-webkit-slider-thumb {
+                background: $dark-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
+
+            &::-moz-range-thumb {
+                background: $dark-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
         }
 
         &_temp{
             background: linear-gradient(to right, yellow, orange, red);
+            &::-webkit-slider-thumb {
+                background: $dark-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
+
+            &::-moz-range-thumb {
+                background: $dark-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
         }
     }
 
     &_min{
         &_temp{
             background: linear-gradient(to right, indigo, blue, cyan);
+            &::-webkit-slider-thumb {
+                background: $light-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
+
+            &::-moz-range-thumb {
+                background: $light-slider;
+                border: 2px solid $black;
+                mix-blend-mode: hard-light;
+            }
         }
     }
 }
