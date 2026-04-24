@@ -56,115 +56,132 @@ function timeUpdater() {
 
 async function updateThemeByTime() {
     const now = new Date();
+    const root = document.documentElement;
 
-    if (!cachedPrefs) {
-        cachedPrefs = await getActivePrefs(window.currentUser);
-    }
+    const fallbackTheme = {
+        r1: 0, g1: 133, b1: 113,
+        r2: 0, g2: 70, b2: 77,
+        textColor: '#FFFFFF',
+        invert: '0%'
+    };
 
-    const prefs = await getActivePrefs(window.currentUser);
-    
-    const coords = normalizeCoords(prefs?.homeLocation);
-    const sunTimes = SunCalc.getTimes(now, coords.lat, coords.lon);
-    const body = document.body;
-
-    const getMin = (date) => {
-        if (!(date instanceof Date) || isNaN(date)) return 0;
-        return date.getHours() * 60 + date.getMinutes();
-    }
-    const sunrise = getMin(sunTimes.sunrise);
-    const solarNoon = getMin(sunTimes.solarNoon) || 720;
-    const goldenHour = getMin(sunTimes.goldenHourEnd);
-    const sunset = getMin(sunTimes.sunsetStart);
-    const nightStart = getMin(sunTimes.nauticalDusk);
-
-    const totalMinutes = now.getHours() * 60 + now.getMinutes();
-
-    const themes = [
-        { name: 'dawn',  startMin: sunrise - 60, color1: [75, 0, 130], color2: [0, 133, 113]},
-        { name: 'morning', startMin: goldenHour, color1: [0, 133, 113], color2: [0, 120, 150]},
-        { name: 'noon',  startMin: solarNoon - 30, color1: [0, 150, 200], color2: [100, 200, 255]},
-        { name: 'afternoon', startMin: solarNoon + 120, color1: [0, 120, 150], color2: [0, 70, 77]},
-        { name: 'dusk',  startMin: sunset, color1: [0, 70, 77],  color2: [200, 90, 40]},
-        { name: 'night', startMin: nightStart, color1: [10, 15, 30],   color2: [0, 0, 10]}
-    ].sort((a, b) => a.startMin - b.startMin);
-
-    let currentIdx = themes.length - 1;
-    for (let i = 0; i < themes.length; i++) {
-        if (totalMinutes >= themes[i].startMin) {
-            currentIdx = i;
+    try {
+        if (!cachedPrefs) {
+            cachedPrefs = await getActivePrefs(window.currentUser);
         }
-    }
 
-    const nextIdx = (currentIdx + 1) % themes.length;
-    const currentTheme = themes[currentIdx];
-    const nextTheme = themes[nextIdx];
+        const prefs = await getActivePrefs(window.currentUser);
+    
+        const coords = normalizeCoords(prefs?.homeLocation);
+        const sunTimes = SunCalc.getTimes(now, coords.lat, coords.lon);
+        const body = document.body;
 
-    let diff = nextTheme.startMin - currentTheme.startMin;
-    if (diff < 0) diff += 1440;
+        const getMin = (date) => {
+            if (!(date instanceof Date) || isNaN(date)) return 0;
+            return date.getHours() * 60 + date.getMinutes();
+        }
+        const sunrise = getMin(sunTimes.sunrise);
+        const solarNoon = getMin(sunTimes.solarNoon) || 720;
+        const goldenHour = getMin(sunTimes.goldenHourEnd);
+        const sunset = getMin(sunTimes.sunsetStart);
+        const nightStart = getMin(sunTimes.nauticalDusk);
 
-    let ratio = 0;
-    if (diff > 0) {
+        const totalMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const themes = [
+            { name: 'dawn',  startMin: sunrise - 60, color1: [75, 0, 130], color2: [0, 133, 113]},
+            { name: 'morning', startMin: goldenHour, color1: [0, 133, 113], color2: [0, 120, 150]},
+            { name: 'noon',  startMin: solarNoon - 30, color1: [0, 150, 200], color2: [100, 200, 255]},
+            { name: 'afternoon', startMin: solarNoon + 120, color1: [0, 120, 150], color2: [0, 70, 77]},
+            { name: 'dusk',  startMin: sunset, color1: [0, 70, 77],  color2: [200, 90, 40]},
+            { name: 'night', startMin: nightStart, color1: [10, 15, 30],   color2: [0, 0, 10]}
+        ].sort((a, b) => a.startMin - b.startMin);
+
+        let currentIdx = themes.length - 1;
+        for (let i = 0; i < themes.length; i++) {
+            if (totalMinutes >= themes[i].startMin) {
+                currentIdx = i;
+            }
+        }
+
+        const nextIdx = (currentIdx + 1) % themes.length;
+        const currentTheme = themes[currentIdx];
+        const nextTheme = themes[nextIdx];
+
+        let diff = nextTheme.startMin - currentTheme.startMin;
+        if (diff < 0) diff += 1440;
+
+        let ratio = 0;
+        if (diff > 0) {
+            let progress = (totalMinutes - currentTheme.startMin);
+            if (progress < 0) progress += 1440;
+            ratio = progress / diff;
+        }
+
+        ratio = Math.max(0, Math.min(1, ratio));
+
         let progress = (totalMinutes - currentTheme.startMin);
         if (progress < 0) progress += 1440;
-        ratio = progress / diff;
-    }
-
-    ratio = Math.max(0, Math.min(1, ratio));
-
-    let progress = (totalMinutes - currentTheme.startMin);
-    if (progress < 0) progress += 1440;
     
-    if (ratio % 0.1 < 0.01) {
-        console.log(`Theme Update: ${currentTheme.name} (${(ratio * 100).toFixed(1)}%)`);
-    }
-
-    const lerp = (a, b, r) => {
-        const result = Math.round(a + (b - a) * r);
-        return isNaN(result) ? a : result;
-    }
-    
-    const r1 = lerp(currentTheme.color1[0], nextTheme.color1[0], ratio);
-    const g1 = lerp(currentTheme.color1[1], nextTheme.color1[1], ratio);
-    const b1 = lerp(currentTheme.color1[2], nextTheme.color1[2], ratio);
-
-    const r2 = lerp(currentTheme.color2[0], nextTheme.color2[0], ratio);
-    const g2 = lerp(currentTheme.color2[1], nextTheme.color2[1], ratio);
-    const b2 = lerp(currentTheme.color2[2], nextTheme.color2[2], ratio);
-
-    const getContrastColor = (r, g, b) => {
-        const realR = r * 0.5;
-        const realG = g * 0.5;
-        const realB = b * 0.5;
-        const brightness = (realR * 299 + realG * 587 + realB * 114) / 1000;
-        const decision = (brightness > 125) ? '#000000' : '#FFFFFF';
-        
-        if (window.lastThemeColor !== decision) {
-            console.log(`🌓 UI Contrast Shift: ${decision} (Brightness: ${brightness.toFixed(2)})`);
-            window.lastThemeColor = decision;
+        if (ratio % 0.1 < 0.01) {
+            console.log(`Theme Update: ${currentTheme.name} (${(ratio * 100).toFixed(1)}%)`);
         }
 
-        return decision;
+        const lerp = (a, b, r) => {
+            const result = Math.round(a + (b - a) * r);
+            return isNaN(result) ? a : result;
+        }
+    
+        const r1 = lerp(currentTheme.color1[0], nextTheme.color1[0], ratio);
+        const g1 = lerp(currentTheme.color1[1], nextTheme.color1[1], ratio);
+        const b1 = lerp(currentTheme.color1[2], nextTheme.color1[2], ratio);
 
+        const r2 = lerp(currentTheme.color2[0], nextTheme.color2[0], ratio);
+        const g2 = lerp(currentTheme.color2[1], nextTheme.color2[1], ratio);
+        const b2 = lerp(currentTheme.color2[2], nextTheme.color2[2], ratio);
+
+        const getContrastColor = (r, g, b) => {
+            const realR = r * 0.5;
+            const realG = g * 0.5;
+            const realB = b * 0.5;
+            const brightness = (realR * 299 + realG * 587 + realB * 114) / 1000;
+            const decision = (brightness > 125) ? '#000000' : '#FFFFFF';
+        
+            if (window.lastThemeColor !== decision) {
+                console.log(`🌓 UI Contrast Shift: ${decision} (Brightness: ${brightness.toFixed(2)})`);
+                window.lastThemeColor = decision;
+            }
+
+            return decision;
+        }
+
+        const brighten = (r, g, b, factor = 0.4) => {
+            const newR = Math.min(255, Math.round(r + (255 - r) * factor));
+            const newG = Math.min(255, Math.round(g + (255 - g) * factor));
+            const newB = Math.min(255, Math.round(b + (255 - b) * factor));
+            return `${newR}, ${newG}, ${newB}`;
+        }
+
+        const textColor = getContrastColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
+        const glowColor = brighten(r1, g1, b1, 0.5);
+
+        const invertValue = (textColor === '#000000') ? '100%' : '0%';
+        const root = document.documentElement;
+        root.style.setProperty('--bg-start', `rgba(${r1}, ${g1}, ${b1}, 0.5)`);
+        root.style.setProperty('--bg-end', `rgba(${r2}, ${g2}, ${b2}, 0.5)`);
+        root.style.setProperty('--bg-glow', `rgba(${glowColor}, 0.8)`);
+
+        root.style.setProperty('--accent-color', textColor);
+        root.style.setProperty('--icon-invert', invertValue);
+    } catch {
+        console.warn("Theme calculation failed, applying fallback:", error);
+
+        root.style.setProperty('--bg-start', `rgba(${fallbackTheme.r1}, ${fallbackTheme.g1}, ${fallbackTheme.b1}, 0.5)`);
+        root.style.setProperty('--bg-end', `rgba(${fallbackTheme.r2}, ${fallbackTheme.g2}, ${fallbackTheme.b2}, 0.5)`);
+        root.style.setProperty('--bg-glow', `rgba(79, 255, 229, 0.8)`);
+        root.style.setProperty('--accent-color', fallbackTheme.textColor);
+        root.style.setProperty('--icon-invert', fallbackTheme.invert);
     }
-
-    const brighten = (r, g, b, factor = 0.4) => {
-        const newR = Math.min(255, Math.round(r + (255 - r) * factor));
-        const newG = Math.min(255, Math.round(g + (255 - g) * factor));
-        const newB = Math.min(255, Math.round(b + (255 - b) * factor));
-        return `${newR}, ${newG}, ${newB}`;
-    }
-
-    const textColor = getContrastColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
-    const glowColor = brighten(r1, g1, b1, 0.5);
-
-    const invertValue = (textColor === '#000000') ? '100%' : '0%';
-    const root = document.documentElement;
-    root.style.setProperty('--bg-start', `rgba(${r1}, ${g1}, ${b1}, 0.5)`);
-    root.style.setProperty('--bg-end', `rgba(${r2}, ${g2}, ${b2}, 0.5)`);
-    root.style.setProperty('--bg-glow', `rgba(${glowColor}, 0.8)`);
-
-    root.style.setProperty('--accent-color', textColor);
-    root.style.setProperty('--icon-invert', invertValue);
 }
 
 timeUpdater();

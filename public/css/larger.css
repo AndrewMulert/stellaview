@@ -1,4 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap");
+:root {
+  --bg-start: rgba(0, 133, 113, 0.5);
+  --bg-end: rgba(0, 70, 77, 0.5);
+  --accent-color: #ffffff;
+  --icon-invert: 0%;
+}
+
 body {
   margin: 0px;
   isolation: isolate;
@@ -306,10 +313,12 @@ main {
   resize: none;
   padding: 10px;
   border-radius: 15px;
+  border: none;
 }
 .settings_group input {
   padding: 10px;
   border-radius: 15px;
+  border: none;
 }
 .settings_large {
   position: relative;
@@ -528,8 +537,9 @@ main {
   appearance: none;
   width: 20px;
   height: 20px;
-  background: #FFDB59;
+  background: #ffff80;
   border: 2px solid #000000;
+  mix-blend-mode: hard-light;
   border-radius: 50%;
   cursor: pointer;
   margin-top: -6px;
@@ -537,8 +547,9 @@ main {
 .slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
-  background: #FFDB59;
+  background: #ffff80;
   border: 2px solid #000000;
+  mix-blend-mode: hard-light;
   border-radius: 50%;
   cursor: pointer;
 }
@@ -872,11 +883,41 @@ main {
 #pref_max_bortle {
   background: linear-gradient(to right, #0022ff, #00ffff, #00ff00, #ffff00, #ff4400);
 }
+#pref_max_bortle::-webkit-slider-thumb {
+  background: #400080;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
+}
+#pref_max_bortle::-moz-range-thumb {
+  background: #400080;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
+}
 #pref_max_temp {
   background: linear-gradient(to right, yellow, orange, red);
 }
+#pref_max_temp::-webkit-slider-thumb {
+  background: #400080;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
+}
+#pref_max_temp::-moz-range-thumb {
+  background: #400080;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
+}
 #pref_min_temp {
   background: linear-gradient(to right, indigo, blue, cyan);
+}
+#pref_min_temp::-webkit-slider-thumb {
+  background: #ffff80;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
+}
+#pref_min_temp::-moz-range-thumb {
+  background: #ffff80;
+  border: 2px solid #000000;
+  mix-blend-mode: hard-light;
 }
 
 #register_form {

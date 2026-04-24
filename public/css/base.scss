@@ -30,6 +30,13 @@ $black: #000000;
     border: $blur2 solid $color3;
 }
 
+:root {
+    --bg-start: rgba(0, 133, 113, 0.5);
+    --bg-end: rgba(0, 70, 77, 0.5);
+    --accent-color: #ffffff;
+    --icon-invert: 0%;
+}
+
 body{
     margin: 0px;
     isolation: isolate;

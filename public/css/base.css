@@ -1,4 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap");
+:root {
+  --bg-start: rgba(0, 133, 113, 0.5);
+  --bg-end: rgba(0, 70, 77, 0.5);
+  --accent-color: #ffffff;
+  --icon-invert: 0%;
+}
+
 body {
   margin: 0px;
   isolation: isolate;
