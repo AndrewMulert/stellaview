@@ -4,7 +4,7 @@ import Home from '../models/Home.js';
 const router = Router();
  
 // The home page route
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
     try {
         const home = await Home.find().sort({_id: 1 });
 
@@ -13,7 +13,8 @@ router.get('/', async (req, res) => {
         
         res.render('index', { 
             title: 'StellaView', 
-            description: 'An algorithm based site dedicated to helping you find the best days to view the sky',
+            description: 'Find the clearest skies with StellaView, an AI powered algorithm that scans cloud cover, moon brightness, temperature, air pollution, and ground vegetation to help you find the best locations for stargazing!',
+            content: 'stargazing, night, night sky, dark sky, light pollution, stargazing sites, AI, Algorithm, telescope, photography, night photography, star trails, bortle, stella, stellaview, stella view, bortle scale, cloud cover, astronomical seeing, milky way, celestial events, predictive analytics, light pollution map, dark sky finder, star chart, astrophotography, predictive algorithm, leaflet maps',
             styles: [
                 `<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />`
             ],
@@ -25,7 +26,7 @@ router.get('/', async (req, res) => {
             ]
         });
     } catch (err) {
-        console.error('Error fetching about', err);
+        console.error('Error fetching home data:', err);
         next(err);
     }
 });
