@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsForm = document.getElementById('settings_form');
     const logoutBtn = document.getElementById('logout_btn');
     const settingsModal = document.getElementById('settings_modal');
+    const tosModal = document.getElementById('tos_modal');
 
     let initialPrefs = {};
 
@@ -250,6 +251,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsModal.classList.add('hidden');
     });
 
+    const closeTos = document.getElementById('close_tos');
+
+    closeTos?.addEventListener('click', () => {
+        tosModal.classList.add('hidden');
+    });
+
+    document.getElementById('open_tos_link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('tos_modal').classList.remove('hidden');
+    });
+
     settingsForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -379,6 +391,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             settingsModal.classList.add('hidden');
         }
     });
+
+    tosModal.addEventListener('click', (e) => {
+        if (e.target === tosModal) {
+            tosModal.classList.add('hidden');
+        }
+    })
 });
 
 async function updateUIForLoggedInUser() {
@@ -417,10 +435,10 @@ function positionMenu (anchorId, menuId) {
     if (anchor && menu) {
         const rect = anchor.getBoundingClientRect();
         menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 20}px`
+        menu.style.top = `${rect.bottom + 20}px`;
 
         const menuWidth = menu.offsetWidth || 345;
-        menu.style.left = `${Math.max(10, rect.right - menuWidth)}px`
+        menu.style.left = `${Math.max(10, rect.right - menuWidth)}px`;
     }
 };
 

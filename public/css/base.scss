@@ -42,7 +42,7 @@ body{
     isolation: isolate;
 }
 
-h1, h2, h3, h4, p, input, a, span, button, label, textarea {
+h1, h2, h3, h4, p, input, a, span, button, label, textarea, li {
     font-family: 'Google Sans Flex', 'Arial';
 }
 
@@ -116,12 +116,22 @@ main{
     }
 }
 
-.drop-down-message{
-    color: var(--accent-color);
-    text-align: center;
-    margin: 0px;
-    font-weight: 300;
-    font-size: 14px;
+.drop-down {
+    &-info {
+        /*@include glassBlur($color1: rgba(58, 90, 94, 0.75), $color2: rgba(27, 61, 76, 0.75));
+        max-width: 200px;
+        margin-right: auto;
+        margin-left: auto;
+        padding: 5px;*/
+        border-radius: 25px;
+    }
+    &-message {
+        color: var(--accent-color);
+        text-align: center;
+        margin: 0px;
+        font-weight: 300;
+        font-size: 14px;
+    }
 }
 
 .hero{
@@ -334,29 +344,36 @@ main{
 }
 
 .settings{
+    &_background {
+        @include glassBlur($color1: rgba(53, 53, 53, 0.6), $color2: rgba(21, 21, 21, 0.6));
+        box-shadow: 0 0 15px 5px var(--bg-glow);
+    }
+
     &_group{
         display: flex;
         flex-direction: column;
         gap: 4px;
 
-        label{
-            color: $white;
+        label {
             padding-top: 10px;
             padding-bottom: 5px;
         }
-        span {
-            color: $white;
-        }
+
         textarea{
             resize: none;
             padding: 10px;
             border-radius: 15px;
             border: none;
         }
+
         input{
             padding: 10px;
             border-radius: 15px;
             border: none;
+        }
+
+        h1, h2, h3, li, label, span {
+            color: $white;
         }
     }
 
@@ -370,8 +387,6 @@ main{
         overflow: hidden !important;
         padding: 30px;
         border-radius: 40px;
-        @include glassBlur($color1: rgba(53, 53, 53, 0.6), $color2: rgba(21, 21, 21, 0.6));
-        box-shadow: 0 0 15px 5px var(--bg-glow);
 
         .close_btn { 
             align-self: flex-end;
@@ -394,6 +409,12 @@ main{
         grid-template-columns: 20px 1fr 20px;
         grid-template-rows: 20px 1fr 20px;
     }
+
+    &_services {
+        @include glassBlur($color1: var(--bg-start), $color2: var(--bg-end));
+        box-shadow: 0 0 15px 5px var(--bg-glow);
+    }
+
     &_view{
         flex: 1;
         min-height: 0;
@@ -1072,7 +1093,7 @@ main{
         margin-right: auto;
         margin-left: auto;
         grid-row: 5 /6;
-        color: $white;
+        color: $black;
         font-weight: 700;
     }
 
@@ -1199,6 +1220,47 @@ main{
         filter: sepia(100%) saturate(400%) brightness(1.1) !important;
         mix-blend-mode: screen;
         opacity: 0.6;
+    }
+}
+
+#tos_modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+
+    &::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        background-color: rgba(0, 0, 0, 0.7);
+        backdrop-filter: none !important;
+        pointer-events: none;
+    }
+
+    a {
+        text-decoration: none;
+        color: $white;
+
+        &:visited {
+            color: $white;
+        }
     }
 }
 

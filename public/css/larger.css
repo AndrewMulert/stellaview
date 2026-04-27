@@ -88,6 +88,14 @@ main {
   align-self: center;
 }
 
+.drop-down-info {
+  /*@include glassBlur($color1: rgba(58, 90, 94, 0.75), $color2: rgba(27, 61, 76, 0.75));
+  max-width: 200px;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 5px;*/
+  border-radius: 25px;
+}
 .drop-down-message {
   color: var(--accent-color);
   text-align: center;
@@ -330,11 +338,6 @@ main {
   overflow: hidden !important;
   padding: 30px;
   border-radius: 40px;
-  background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 .settings_large .close_btn {
   align-self: flex-end;
@@ -940,7 +943,7 @@ main {
   margin-right: auto;
   margin-left: auto;
   grid-row: 5/6;
-  color: #ffffff;
+  color: #000000;
   font-weight: 700;
 }
 #register_form #name_fields {
@@ -1021,6 +1024,11 @@ main {
   align-items: center;
   justify-content: center;
   z-index: 2000;
+  background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 #settings_modal::before {
   content: "";
@@ -1055,6 +1063,42 @@ main {
   filter: sepia(100%) saturate(400%) brightness(1.1) !important;
   mix-blend-mode: screen;
   opacity: 0.6;
+}
+
+#tos_modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  background-image: linear-gradient(var(--bg-start), var(--bg-end));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px 5px var(--bg-glow);
+}
+#tos_modal::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: none !important;
+  pointer-events: none;
 }
 
 #weekly_outlook {
