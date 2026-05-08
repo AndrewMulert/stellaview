@@ -196,6 +196,8 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const [index, site] = queue.shift();
 
             await processSite(site, index);
+
+            await new Promise(r => setTimeout(r, 50));
             
             if (tracker) {
                 tracker.completed++
@@ -204,7 +206,9 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             }
 
             if (statusText) {
-                let overallProgress = 0;
+                let overallProgress = Math.round((completedCount / semiFilteredSites.length) * 100);
+                statusText.innerText = `🧠 Evaluating Sites... ${overallProgress}%`;
+                /*let overallProgress = 0;
                 if (context && context.mode === 'weekly') {
                     const current = tracker ? tracker.completed : completedCount;
                     const total = context.totalSites || 1;
@@ -213,14 +217,14 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
                 } else {
                     overallProgress = Math.round((completedCount / semiFilteredSites.length) * 100);
                     statusText.innerText = `🧠 Making Decision... ${overallProgress}%`;
-                }
+                }*/
             } 
             
         }
     }
 
     await Promise.all(
-        Array(Math.min(5, semiFilteredSites.length))
+        Array(Math.min(3, semiFilteredSites.length))
         .fill(null)
         .map(() => worker())
     );
@@ -231,7 +235,14 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         validSitesData.sort((a, b) => a.originalIndex - b.originalIndex);
 
         const scores = tf.tidy(() => {
-            const tensorInputs = tf.tensor2d(validSitesData.map(d => d.inputData), [validSitesData.length, 15]);
+            const cleanInputMatrix = validSitesData.map(d => 
+                d.inputData.map(val => {
+                    if (typeof val !== 'number' || isNaN(val)) return 0;
+                    return val;
+                })
+            )
+
+            const tensorInputs = tf.tensor2d(cleanInputMatrix, [validSitesData.length, 15]);
             const predictions = model.predict(tensorInputs);
             return predictions.dataSync();
         });
@@ -255,8 +266,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
         const range = maxRaw - minRaw;
 
         validSites.forEach(site => {
-            let normalizedRel = range > 0 ? (site.rawScore - minRaw) / range : 1.0;
-            let humanScore = 65 + (normalizedRel * 33);
+            let humanScore = Math.max(0, Math.min(1, site.rawScore || 0)) * 100;
             site.score = humanScore.toFixed(1);
         });
         validSites.sort((a, b) => b.score - a.score);

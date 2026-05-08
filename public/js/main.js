@@ -208,7 +208,7 @@ async function initAI() {
     const statusText = document.getElementById('ai-status-text');
     const siteCard = document.querySelector('site-card');
     const dropDown = document.querySelector('.drop-down-info');
-    const MODEL_VERSION = "2.2.4.3_cleanup";
+    const MODEL_VERSION = "2.2.5.1_balanced_scale";
     const STORE_PATH = "indexeddb://stella-model";
 
     try{
@@ -656,7 +656,22 @@ const updateUI = async (coords, prefs, sessionId = null) => {
     }
     if (featuredContainer) featuredContainer.innerHTML = "";
 
-    decisionSpan.textContent = "Tonight is a good night for stargazing.";
+    if (topSite && topSite.score !== null) {
+        const score = parseFloat(topSite.score);
+        if (score >= 80){
+            decisionSpan.textContent = "The stars have aligned perfectly this evening!"
+        } else if (score >= 60) {
+            decisionSpan.textContent = "Tonight is a good night for stargazing.";
+        } else if (score >= 40) {
+            decisionSpan.textContent = "Spotty conditions, may luck be in your favor.";
+        } else if (score >= 20) {
+            decisionSpan.textContent = "The stars will wait your return another night.";
+        } else {
+            decisionSpan.textContent = "Keep a lookout for better star gazing nights down the road."
+        }
+    } else {
+        decisionSpan.textContent = "Tonight is a good night for stargazing.";
+    }
 
     if (featuredContainer && topSite) {
         featuredContainer.classList.remove('hidden');

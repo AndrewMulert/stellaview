@@ -39,8 +39,6 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         const normTemp = normalizeTempContextual(scenario.temp, minTemp, maxTemp, scenario.seasonalMean);
         const tempDeviation = (scenario.temp - scenario.seasonalMean) / 30;
         const mockUserDarknessLimit = Math.random() * 0.7 + 0.3;
-        
-        let cloudScoreWeight = normClouds * 35;
 
         let moonPenaltyFactor = 1.0;
         if (scenario.isMoonUp === 1) {
@@ -61,24 +59,27 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             clampedDeviation
         ];
 
-        let score = (darknessFactor * 30)
-            + (scenario.trustFactor * 25)
-            + cloudScoreWeight
+        let score = (darknessFactor * 25)
+            + (scenario.trustFactor * 20)
+            + (normClouds * 30)
             + (normMoon * 15)
-            + (normTemp * 15)
+            + (normTemp * 5)
             + (normDuration * 10)
             + (normStartHour * 10)
-            + (normNDVI * 15)
+            + (normNDVI * 1)
             + (normTravel * 10)
             + (normAQI * 5);
 
         score *= moonPenaltyFactor;
 
-        if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.1;
-        if (scenario.temp < minTemp) score *= 0.1;
-        if (scenario.clouds > 20) score *=0.3;
-        if (scenario.clouds > 50) score *=0.1;
-        if (scenario.clouds > 75 || scenario.pm25 > 100) score = 0;
+        if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.6;
+        if (scenario.temp < minTemp) score *= 0.7;
+        if (scenario.clouds > 80 || scenario.pm25 > 120) {
+            score = 0;
+        } else if (scenario.clouds > 30) {
+            score *= 0.5;
+        }
+
         if (scenario.trustFactor < 0.6 ) score *= 0.4;
 
         if (scenario.travelTime > maxDrive) {
@@ -86,13 +87,12 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         }
 
         if (darknessFactor < mockUserDarknessLimit) {
-            score *= 0.3;
+            score *= 0.7;
         }
 
         const noise = (Math.random() - 0.5) * 0.05;
         const baseScore = score / 100;
-        const weightedOutput = Math.pow(baseScore, 0.5);
-        const normalizedOutput = Math.max(0, Math.min(1, weightedOutput + noise)); 
+        const normalizedOutput = Math.max(0, Math.min(1, baseScore + noise)); 
 
         trainingData.push({ input: inputVector, output: [normalizedOutput] });
     }
