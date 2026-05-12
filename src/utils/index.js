@@ -72,6 +72,10 @@ const getNav = (user = null) => {
             </li>
             <li class="nav_link_container" id="nav_clock">
                 <div class="nav_clock_time">
+                    <svg id="nav_moon_container" width="24px" height="24px">
+                        <title id="moon_tooltip"></title>
+                        <image id="nav_moon_icon" width="24px" height="24px" href=/images/icon_moon_full.svg alt="Moon Phase"></image>
+                    </svg>
                     <h3 id="home_time"></h3>
                 </div>
             </li>

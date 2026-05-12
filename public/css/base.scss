@@ -253,6 +253,8 @@ main{
         margin: 0px 10px 0px 10px;
     }
     &_clock_time{
+        display: grid !important;
+        grid-template-columns: 24px 70px;
         color: var(--accent-color);
         transition: background-color 0.5s linear, color 0.5s ease;
         @include glassBlur(var(--bg-start), var(--bg-end));
@@ -865,7 +867,7 @@ main{
 
 #home_time{
     margin: 0px;
-    margin-top: 5px;
+    max-width: 70px;
     font-weight: 400;
 }
 
@@ -1002,6 +1004,14 @@ main{
         padding: 10px;
         flex-grow: 1;
         justify-content: center;
+    }
+
+    &_moon {
+        &_icon {
+            transform: rotate(-45deg);
+            transform-origin: center;
+            transition: transform 0.3s ease;
+        }
     }
     &_profile{
         @include glassBlur($color1: rgba(147, 249, 234, 0.625), $color2: rgba(89, 255, 229, 0.625));

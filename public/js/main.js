@@ -48,6 +48,8 @@ function timeUpdater() {
         hours = hours % 12;
         hours = hours ? hours : 12;
 
+        if (new Date().getMinutes() === 0) updateMoonPhaseIcon();
+
         const displayMinutes = minutes < 10? `0${minutes}` : minutes;
 
         timeSpan.textContent = `${hours}:${displayMinutes} ${meridiem}`;
@@ -186,6 +188,53 @@ async function updateThemeByTime() {
 
 timeUpdater();
 setInterval(timeUpdater, 1000);
+
+function updateMoonPhaseIcon() {
+    const moonIconElement = document.querySelector("#nav_moon_icon");
+    const moonTooltip = document.querySelector("#moon_tooltip");
+
+    if (!moonIconElement || !moonTooltip) return;
+
+    const now = new Date();
+    const moonInfo = SunCalc.getMoonIllumination(now);
+    const phase = moonInfo.phase;
+    const illumination = Math.round(moonInfo.fraction * 100);
+
+    let icon = "icon_moon_full.svg";
+    let label = "Full Moon";
+
+    if (phase <= 0.03 || phase > 0.97) {
+        icon = "icon_moon_new.svg";
+        label = "New Moon";
+    } else if (phase > 0.03 && phase <= 0.22) {
+        icon = "icon_moon_waxing_crescent.svg";
+        label = "Waxing Crescent";
+    } else if (phase > 0.22 && phase <= 0.28) {
+        icon = "icon_moon_first.svg";
+        label = "First Quarter";
+    } else if (phase > 0.28 && phase <= 0.47) {
+        icon = "icon_moon_waxing_gibbous.svg";
+        label = "Waxing Gibbous";
+    } else if (phase > 0.47 && phase <= 0.53) {
+        icon = "icon_moon_full.svg";
+        label = "Full Moon";
+    } else if (phase > 0.53 && phase <= 0.72) {
+        icon = "icon_moon_waning_gibbous.svg";
+        label = "Waning Gibbous";
+    } else if (phase > 0.72 && phase <= 0.78) {
+        icon = "icon_moon_third.svg"; // Your Third Quarter filename
+        label = "Third Quarter";
+    } else if (phase > 0.78 && phase <= 0.97) {
+        icon = "icon_moon_waning_crescent.svg"; // Your Waning Crescent filename
+        label = "Waning Crescent";
+    }
+
+    moonIconElement.setAttribute("href", `/images/${icon}`);
+    moonIconElement.setAttribute("alt", label);
+
+    const tooltipText = `${label} (${illumination}% Illumination)`;
+    moonTooltip.setAttribute("title", tooltipText);
+}
 
 let trainedModel = null;
 let currentSearchId = 0;
@@ -913,6 +962,8 @@ async function startApp() {
     
     await updateThemeByTime();
     setInterval(updateThemeByTime, 60000);
+
+    await updateMoonPhaseIcon();
 
     await initAI();
     await runStargazingEngine();

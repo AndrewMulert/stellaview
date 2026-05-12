@@ -11,7 +11,7 @@ body {
   isolation: isolate;
 }
 
-h1, h2, h3, h4, p, input, a, span, button, label, textarea {
+h1, h2, h3, h4, p, input, a, span, button, label, textarea, li {
   font-family: "Google Sans Flex", "Arial";
 }
 
@@ -219,6 +219,8 @@ main {
   margin: 0px 10px 0px 10px;
 }
 .nav_clock_time {
+  display: grid !important;
+  grid-template-columns: 24px 70px;
   color: var(--accent-color);
   transition: background-color 0.5s linear, color 0.5s ease;
   background-image: linear-gradient(var(--bg-start), var(--bg-end));
@@ -304,18 +306,21 @@ main {
   transform: rotate(180deg) !important;
 }
 
+.settings_background {
+  background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px 5px var(--bg-glow);
+}
 .settings_group {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 .settings_group label {
-  color: #ffffff;
   padding-top: 10px;
   padding-bottom: 5px;
-}
-.settings_group span {
-  color: #ffffff;
 }
 .settings_group textarea {
   resize: none;
@@ -327,6 +332,9 @@ main {
   padding: 10px;
   border-radius: 15px;
   border: none;
+}
+.settings_group h1, .settings_group h2, .settings_group h3, .settings_group li, .settings_group label, .settings_group span {
+  color: #ffffff;
 }
 .settings_large {
   position: relative;
@@ -355,6 +363,13 @@ main {
   display: grid;
   grid-template-columns: 20px 1fr 20px;
   grid-template-rows: 20px 1fr 20px;
+}
+.settings_services {
+  background-image: linear-gradient(var(--bg-start), var(--bg-end));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 .settings_view {
   flex: 1;
@@ -743,7 +758,7 @@ main {
 
 #home_time {
   margin: 0px;
-  margin-top: 5px;
+  max-width: 70px;
   font-weight: 400;
 }
 
@@ -1024,11 +1039,6 @@ main {
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  background-image: linear-gradient(rgba(53, 53, 53, 0.6), rgba(21, 21, 21, 0.6));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 #settings_modal::before {
   content: "";
@@ -1082,11 +1092,6 @@ main {
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  background-image: linear-gradient(var(--bg-start), var(--bg-end));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px 5px var(--bg-glow);
 }
 #tos_modal::before {
   content: "";
@@ -1099,6 +1104,13 @@ main {
   background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: none !important;
   pointer-events: none;
+}
+#tos_modal a {
+  text-decoration: none;
+  color: #ffffff;
+}
+#tos_modal a:visited {
+  color: #ffffff;
 }
 
 #weekly_outlook {
