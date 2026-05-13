@@ -220,7 +220,7 @@ main {
 }
 .nav_clock_time {
   display: grid !important;
-  grid-template-columns: 24px 70px;
+  grid-template-columns: 24px 80px;
   color: var(--accent-color);
   transition: background-color 0.5s linear, color 0.5s ease;
   background-image: linear-gradient(var(--bg-start), var(--bg-end));
@@ -758,7 +758,7 @@ main {
 
 #home_time {
   margin: 0px;
-  max-width: 70px;
+  max-width: 80px;
   font-weight: 400;
 }
 

@@ -1,7 +1,7 @@
 import SunCalc from 'https://esm.sh/suncalc@1.9.0';
 import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js';
 import { checkWeatherWindow, checkAirQuality } from './engine.js';
-import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes, getNDVI} from './utils.js';
+import { calculateDriveTime, getMoonIllumination, getRadianceValue, normalizeInputs, radianceToBortle, getActualDriveTimes, getNDVI, getStargazingWindow} from './utils.js';
 import { generateMockHistory } from './trainer.js';
 import * as api from './api.js';
 
@@ -70,12 +70,10 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const lat = userLoc?.lat || 44.4605;
     const lon = userLoc?.lon || -110.8281;
 
-    const sunTimes = SunCalc.getTimes(new Date(), lat, lon);
-    const astroDusk = sunTimes.astronomicalDusk ? new Date(sunTimes.astronomicalDusk) : new Date(new Date().setHours(20, 0, 0, 0));
-    let windowStart = new Date(Math.max(new Date(), astroDusk.getTime()));
+    const { start: windowStart, end: windowEnd } = getStargazingWindow(lat, lon, prefs)
     const hourKey = windowStart.getHours();
 
-    const tomorrowDawn = new Date();
+    /*const tomorrowDawn = new Date();
     tomorrowDawn.setDate(tomorrowDawn.getDate() + 1);
     tomorrowDawn.setHours(5, 0, 0, 0);
     const astroDawn = sunTimes.astronomicalDawn ? new Date(sunTimes.astronomicalDawn) : tomorrowDawn;
@@ -96,7 +94,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     const minimumWindowEnd = new Date(windowStart.getTime() + (60 * 60 * 1000));
     if (windowEnd < minimumWindowEnd) {
         windowEnd = minimumWindowEnd;
-    }
+    }*/
     
 
     console.log(`🌌 Search Window: ${windowStart.toLocaleTimeString()} to ${windowEnd.toLocaleTimeString()}`);
@@ -166,9 +164,12 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
                 ]);
 
                 const moonPos = SunCalc.getMoonPosition(new Date(weather.bestTime), site.lat, site.lon);
+                const moonAltitude = moonPos.altitude * (180 / Math.PI);
+
+                const isMoonEffectivelyUp = moonAltitude > 2 ? 1 : 0;
                 const travelTime = (roadTimes && roadTimes[i] !== undefined) ? roadTimes[i] : calculateDriveTime(userLoc, site);
 
-                data = { weather, aqi, radiance, siteNDVI, travelTime, seasonalMean: regionalMeanTemp, moonIsUpNow: moonPos.altitude > 0 ? 1 : 0};
+                data = { weather, aqi, radiance, siteNDVI, travelTime, seasonalMean: regionalMeanTemp, moonIsUpNow: isMoonEffectivelyUp};
                 BRAIN_CACHE.set(siteKey, data);
             }
 

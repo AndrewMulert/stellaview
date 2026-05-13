@@ -220,7 +220,7 @@ main {
 }
 .nav_clock_time {
   display: grid !important;
-  grid-template-columns: 24px 70px;
+  grid-template-columns: 24px 80px;
   color: var(--accent-color);
   transition: background-color 0.5s linear, color 0.5s ease;
   background-image: linear-gradient(var(--bg-start), var(--bg-end));
@@ -758,7 +758,7 @@ main {
 
 #home_time {
   margin: 0px;
-  max-width: 70px;
+  max-width: 80px;
   font-weight: 400;
 }
 
@@ -876,6 +876,11 @@ main {
   padding: 10px;
   flex-grow: 1;
   justify-content: center;
+}
+#nav_moon_icon {
+  transform: rotate(-45deg);
+  transform-origin: center;
+  transition: transform 0.3s ease;
 }
 #nav_profile {
   background-image: linear-gradient(rgba(147, 249, 234, 0.625), rgba(89, 255, 229, 0.625));

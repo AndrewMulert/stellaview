@@ -1,4 +1,5 @@
 import * as api from "./api.js";
+import SunCalc from 'https://esm.sh/suncalc@1.9.0';
 
 export function calculateDistance(loc1, loc2) {
     const lat1 = loc1.lat ?? loc1.latitude;
@@ -55,7 +56,8 @@ export function normalizeTempContextual(currentTemp, minPref, maxPref, seasonalM
 }
 
 export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow, seasonalMean) {
-    const logRad = Math.log10(radiance + 1);
+    const safeRad = (typeof radiance === 'number' && !isNaN(radiance)) ? radiance : 0.01;
+    const logRad = Math.log10(safeRad + 1);
     const normRadiance = Math.max(0, 1 - (logRad / 1.5));
 
     let normNDVI = 0.8;
@@ -71,15 +73,11 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normAQI = Math.max(0, (100 - safePm25) / 100);
 
     const mIllum = (moonIllum !== undefined) ? moonIllum : 1.0;
-    let normMoon;
-    if (moonIsUpNow) {
-        normMoon = Math.pow(1 - mIllum, 3);
-    } else {
-        normMoon = 1.0;
-    }
+    const normMoon = moonIsUpNow ? Math.pow(1 - mIllum, 3) : 1.0;
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, seasonalMean);
+
     const validMean = (seasonalMean && seasonalMean !== 0) ? seasonalMean : currentTempF;
     const normSeasonal = Math.max(0, Math.min(1, seasonalMean / 120));
     const tempDeviation = Math.max(-1, Math.min(1, (currentTempF - validMean) / 30));
@@ -87,17 +85,12 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
 
     const normStart = Math.max(0, 1 -(startOffset / 12));
     const duration = weather.duration || 0;
-    const normDuration = duration <= 1 ? 0 : Math.min((duration -1) / 5, 1);
-
-    const normTrust = trustFactor;
-
-    const normPublic =  (site.rating !== undefined) ? site.rating / 5 : 0.5;
-    const normUser = (site.userRating !== undefined) ? site.userRating / 5 : 0.5;
+    const normDuration = Math.min(duration / 5, 1);
 
     const maxLimit = prefs.maxDriveTime || 120;
     const normTravel = Math.max(0, 1 - (travelTime / maxLimit));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, normTrust || 0.5, normPublic, normUser, normTravel, normDuration, normStart, moonIsUpNow, normSeasonal, tempDeviation ];
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor, (site.userRating / 5 || 0.5 ), (site.userRating / 5 || 0.5), normTravel, normDuration, normStart, (moonIsUpNow ? 1 : 0), normSeasonal, tempDeviation ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {
@@ -180,12 +173,14 @@ export function radianceToBortle(radiance) {
 }
 
 export function getMoonIllumination(date) {
-    const referenceNewMoon = new Date('2024-01-11T11:57:00Z');
-    const msPerDay = 86400000;
-    const daysSince = (date - referenceNewMoon) / msPerDay;
-    const cyclePos = (daysSince % 29.53059) / 29.53059;
-
-    return Math.abs(Math.sin(cyclePos * Math.PI));
+    try {
+        return SunCalc.getMoonIllumination(date).fraction;
+    } catch (e) {
+        console.error("SunCalc error, falling back to basic phase math", e);
+        const daysSince = (date - new Date('2024-01-11T11:57:00Z')) / 86400000;
+        const cyclePos = (daysSince % 29.53059) / 29.53059;
+        return Math.abs(Math.sin(cyclePos * Math.PI));
+    }
 }
 
 export async function getNDVI(lat, lon, manifestTiles) {
@@ -230,4 +225,48 @@ export async function getNDVI(lat, lon, manifestTiles) {
 
 export function formatCoords(lat, lon) {
     return `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+}
+
+export function getStargazingWindow(lat, lon, prefs) {
+    const now = new Date();
+    const sunTimes = SunCalc.getTimes(now, lat, lon);
+
+    const astroDusk = sunTimes.astronomicalDusk || sunTimes.nauticalDusk || new Date(new Date().setHours(20, 0, 0, 0));
+    let windowStart = new Date(Math.max(now.getTime(), astroDusk.getTime() + (15 * 60 * 1000)));
+
+    const tomorrowDawn = new Date(now);
+    tomorrowDawn.setDate(tomorrowDawn.getDate() + 1);
+    tomorrowDawn.setHours(5, 0, 0, 0);
+    const astroDawn = sunTimes.astronomicalDawn || tomorrowDawn;
+
+    let windowEnd = astroDawn;
+    if (prefs.latestStayOut) {
+        const [hours, minutes] = prefs.latestStayOut.split(':');
+        let userEnd = new Date(astroDusk);
+        userEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        if (parseInt(hours) < 12) userEnd.setDate(userEnd.getDate() + 1);
+        windowEnd = userEnd < astroDawn ? userEnd : astroDawn;
+    }
+
+    const bufferTime = (prefs.departureLeadTime || 30) * 60 * 1000;
+    const travelPadding = 60 * 60 * 1000; // 1 hour safety
+    windowEnd = new Date(windowEnd.getTime() - travelPadding - bufferTime);
+
+    const moonIllum = SunCalc.getMoonIllumination(windowStart).fraction;
+    const moonTimes = SunCalc.getMoonTimes(windowStart, lat, lon);
+
+    if (moonIllum > 0.15) {
+        if (moonTimes.set && moonTimes.set > windowStart) {
+            const potentialTime = new Date(moonTimes.set.getTime() + 15 * 60000);
+            if (potentialTime.getHours() < 5 && potentialTime < windowEnd) {
+                windowStart = potentialTime;
+            }
+        }
+    }
+
+    if (windowEnd < new Date(windowStart.getTime() + 3600000)) {
+        windowEnd = new Date(windowStart.getTime() + 3600000);
+    }
+
+    return { start: windowStart, end: windowEnd };
 }

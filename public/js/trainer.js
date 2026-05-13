@@ -33,16 +33,24 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         const normTravel = Math.max(0, 1 - (scenario.travelTime / maxDrive));
         const normClouds = (100 - scenario.clouds) / 100;
         const normAQI = Math.max(0, (100 - scenario.pm25) / 100);
+        
         const normMoon = scenario.isMoonUp === 1 ? Math.pow(1 - scenario.illumination, 2) : 1.0;
         const normDuration = scenario.duration / 8;
         const normStartHour = 1 - ((scenario.startHour - 18) / 10);
         const normTemp = normalizeTempContextual(scenario.temp, minTemp, maxTemp, scenario.seasonalMean);
         const tempDeviation = (scenario.temp - scenario.seasonalMean) / 30;
         const mockUserDarknessLimit = Math.random() * 0.7 + 0.3;
+        const moonBrightnessImpact = Math.pow(scenario.illumination, 2);
 
-        let moonPenaltyFactor = 1.0;
+        let moonPenalty = 1.0;
         if (scenario.isMoonUp === 1) {
-           moonPenaltyFactor = Math.pow(1 - scenario.illumination, 3);
+           moonPenalty = Math.max(0.1, 1.0 - moonBrightnessImpact);
+    
+            if (scenario.illumination > 0.7) {
+                moonPenalty *= 0.5;
+            }
+        } else {
+            moonPenalty = 1.0
         }
 
         let normNDVI = Math.max(0.1, 1.0 - Math.abs(scenario.ndvi - 0.4) * 2); 
@@ -59,10 +67,10 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             clampedDeviation
         ];
 
-        let score = (darknessFactor * 25)
+        let score = (darknessFactor * 30)
             + (scenario.trustFactor * 20)
             + (normClouds * 30)
-            + (normMoon * 15)
+            + (normMoon * 20)
             + (normTemp * 5)
             + (normDuration * 10)
             + (normStartHour * 10)
@@ -70,9 +78,9 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             + (normTravel * 10)
             + (normAQI * 5);
 
-        score *= moonPenaltyFactor;
+        score *= moonPenalty;
 
-        if (scenario.isMoonUp === 1 && scenario.illumination > 0.4) score *=0.6;
+        if (scenario.isMoonUp === 1 && scenario.illumination > 0.85) score *=0.2;
         if (scenario.temp < minTemp) score *= 0.7;
         if (scenario.clouds > 80 || scenario.pm25 > 120) {
             score = 0;
