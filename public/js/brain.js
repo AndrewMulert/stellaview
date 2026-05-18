@@ -154,6 +154,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
                 const weather = await checkWeatherWindow(site, windowStart, windowEnd, prefs);
 
                 if (!weather.success) {
+                    console.log(`❌ ${site.name} failed weather: ${weather.reason}. Clouds: ${weather.clouds}% Temp: ${weather.temp}F`);
                     failureCounts[weather.reason || 'clouds']++;
                     return;
                 }
@@ -181,6 +182,23 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             const moonIllum = getMoonIllumination(data.weather.bestTime || new Date());
             const pm25 = data.aqi.hourly?.pm2_5?.[0] || 5;
             const startOffset = Math.max(0, (new Date(data.weather.bestTime) - new Date()) / 3600000);
+
+            const inputs = normalizeInputs(data.radiance, site, data.weather, (data.moonIsUpNow ? moonIllum : 0), data.travelTime, prefs, { ...data.aqi, pm25 }, startOffset, data.siteNDVI, site.trustFactor || 0.5, data.moonIsUpNow, (data.seasonalMean ?? data.weather.avgTemp ?? 50));
+            
+            if (i < 3) {
+                console.log(`🧠 Brain Input Diagnostic for ${site.name || 'Site'}:`);
+                console.table({
+                    "Radiance/Bortle": data.radiance.toFixed(2),
+                    "Cloud Cover": data.weather.avgClouds + "%",
+                    "Temperature": data.weather.avgTemp + "F",
+                    "Seasonal Mean": data.seasonalMean + "F",
+                    "PM2.5 AQI": pm25,
+                    "Moon Up": data.moonIsUpNow ? "YES" : "NO",
+                    "Moon Illum": (moonIllum * 100).toFixed(1) + "%",
+                    "Travel Time": data.travelTime.toFixed(0) + " min"
+                });
+                console.log("Normalized Vector:", inputs);
+            }
 
             validSitesData.push({ originalIndex: i, site, duration: data.weather.duration, weather: data.weather, travelTime: data.travelTime, inputData: normalizeInputs(data.radiance, site, data.weather, (data.moonIsUpNow ? moonIllum : 0), data.travelTime, prefs, { ...data.aqi, pm25 }, startOffset, data.siteNDVI, site.trustFactor || 0.5, data.moonIsUpNow, (data.seasonalMean ?? data.weather.avgTemp ?? 50))});
         } catch (err){
@@ -243,9 +261,15 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
                 })
             )
 
+            console.log("🧠 Matrix Sent to model.predict() (All Sites):", cleanInputMatrix);
+
             const tensorInputs = tf.tensor2d(cleanInputMatrix, [validSitesData.length, 15]);
             const predictions = model.predict(tensorInputs);
-            return predictions.dataSync();
+            const syncScores = predictions.dataSync();
+
+            console.log("🔮 Raw Network Sigmoid Outputs (0.0 to 1.0):", Array.from(syncScores));
+
+            return syncScores;
         });
 
         validSites = validSitesData.map((d, i) => ({

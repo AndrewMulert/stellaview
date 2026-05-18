@@ -58,12 +58,10 @@ export function normalizeTempContextual(currentTemp, minPref, maxPref, seasonalM
 export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow, seasonalMean) {
     const safeRad = (typeof radiance === 'number' && !isNaN(radiance)) ? radiance : 0.01;
     const logRad = Math.log10(safeRad + 1);
-    const normRadiance = Math.max(0, 1 - (logRad / 1.5));
+    const normRadiance = Math.max(0, 1 - (logRad / 2.5));
 
-    let normNDVI = 0.8;
-    if (siteNDVI > 0.85) normNDVI = 0.1;
-    else if (siteNDVI < 0.1) normNDVI = 0.4;
-    else normNDVI = 1.0;
+   const safeNDVI = (typeof siteNDVI === 'number' && !isNaN(siteNDVI)) ? siteNDVI : 0.4;
+   const normNDVI = Math.max(0.1, 1.0 - Math.abs(safeNDVI - 0.4) * 2);
 
     const cloudVal = weather.avgClouds ?? weather.clouds ?? 100; 
     const normClouds = Math.max(0, (100 - cloudVal) / 100);
@@ -73,7 +71,7 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const normAQI = Math.max(0, (100 - safePm25) / 100);
 
     const mIllum = (moonIllum !== undefined) ? moonIllum : 1.0;
-    const normMoon = moonIsUpNow ? Math.pow(1 - mIllum, 3) : 1.0;
+    const normMoon = moonIsUpNow ? Math.pow(1 - mIllum, 2) : 1.0;
 
     const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
     const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, seasonalMean);
@@ -85,10 +83,11 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
 
     const normStart = Math.max(0, 1 -(startOffset / 12));
     const duration = weather.duration || 0;
-    const normDuration = Math.min(duration / 5, 1);
+    const normDuration = Math.min(duration / 8, 1);
 
     const maxLimit = prefs.maxDriveTime || 120;
-    const normTravel = Math.max(0, 1 - (travelTime / maxLimit));
+    const travelRatio = travelTime / maxLimit;
+    const normTravel = Math.max(0, Math.sqrt(1 - Math.min(1, travelRatio)));
 
     return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor, (site.userRating / 5 || 0.5 ), (site.userRating / 5 || 0.5), normTravel, normDuration, normStart, (moonIsUpNow ? 1 : 0), normSeasonal, tempDeviation ];
 }

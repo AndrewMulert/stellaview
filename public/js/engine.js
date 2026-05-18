@@ -89,15 +89,16 @@ export async function findBestSites(date, userLocation, allDarkSites, prefs, isH
     const now = new Date();
     let windowEndTime = times.nightEnd;
 
-    if (now > startOfNight && now < windowEndTime){
+    if (now.getTime() > startOfNight.getTime() && now.getTime() < windowEndTime.getTime()){
         startOfNight = now;
     }
 
     if (latestStay.includes(':')) {
         const [h, m] = latestStay.split(':');
-        windowEndTime.setHours(parseInt(h), parseInt (m), 0);
+        windowEndTime = new Date(startOfNight);
+        windowEndTime.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
 
-        if (windowEndTime <= startOfNight) {
+        if (windowEndTime.getTime() <= startOfNight.getTime()) {
             windowEndTime.setDate(windowEndTime.getDate() + 1);
         }
     }
@@ -234,8 +235,8 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
             for (let i = 1; i <= 7; i ++) {
                 const checkDate = new Date();
-                checkDate.setUTCDate(checkDate.getUTCDate() + i);
-                checkDate.setUTCHours(12, 0, 0, 0);
+                checkDate.setDate(checkDate.getDate() + i);
+                checkDate.setHours(12, 0, 0, 0);
 
                 const times = SunCalc.getTimes(checkDate, site.lat, site.lon);
                 const nightStart = times.nauticalDusk;
@@ -357,7 +358,7 @@ export async function findWeeklyOutlook(userLoc, allSites, prefs, trainedModel =
 
     const weeklyBestSummary = availableDates.map(date => {
         const daySites = groupedByDate[date];
-        return daySites.sort((a, b) => b.score = a.score)[0];
+        return daySites.sort((a, b) => b.score - a.score)[0];
     });
 
     return weeklyBestSummary.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -446,42 +447,54 @@ export function renderWeeklyOutlook(weeklyData, prefs) {
 export async function checkWeatherWindow(site, start, end, prefs, data = null) {
     let weatherData = data || await api.getWeatherData(site.lat, site.lon, 2);
 
+    console.log("Raw Weather Keys:", Object.keys(weatherData.hourly));
+
     if (!weatherData?.hourly) return { success: false, reason: 'nodata'};
+
+    console.log("After Hourly Data check:", Object.keys(weatherData.hourly));
 
     const startTime = new Date(start).getTime();
     const endTime = new Date(end).getTime();
 
     console.log(`Checking ${site.name}: Window [${new Date(startTime).toISOString()}] to [${new Date(endTime).toISOString()}]`);
 
-    const hours = weatherData.hourly.time.map((t, i) => ({
-        time: new Date (t.endsWith('Z') ? t : t + ':00.000Z').getTime(),
-        clouds: weatherData.hourly.cloud_cover[i],
-        temp: weatherData.hourly.temperature_2m[i],
-        index: i
-    }))
+    if (weatherData.hourly.time.length > 0) {
+        console.log(`First API Timestamp Sample: ${weatherData.hourly.time[0]}`);
+    }
+
+    const hours = weatherData.hourly.time.map((t, i) => {
+        const parsedTime = new Date(t).getTime();
+
+        return {
+            time: parsedTime,
+            clouds: weatherData.hourly.cloud_cover[i],
+            temp: weatherData.hourly.temperature_2m[i],
+            index: i
+        }
+    })
     .filter(h => h.time >= startTime && h.time <= endTime);
 
 
     if (hours.length === 0) {
         console.error(`    !! No weather data found for ${site.name} in the night window.`);
-        return {success: false, reason: 'out_of_range'}; 
+        return {success: false, reason: 'out_of_range', avgClouds: 0, avgTemp: 0}; 
     }
 
     let bestHour = hours.reduce((prev, curr) => (curr.clouds < prev.clouds ? curr : prev));
 
     if (bestHour.clouds > 60) {
         console.log(`  !! Weather fail for ${site.name}: It's too cloudy (${bestHour.clouds}%).`);
-        return { success: false, reason: 'clouds' };
+        return { success: false, reason: 'clouds', clouds: bestHour.clouds, temp: bestHour.temp, avgClouds: bestHour.clouds, avgTemp: bestHour.temp };
     }
 
     if (bestHour.temp < prefs.minTemp) {
         console.log(`!! Cold fail: ${bestHour.temp}° < ${prefs.minTemp}°`);
-        return { success: false, reason: 'cold' };
+        return { success: false, reason: 'cold', avgClouds: bestHour.clouds, avgTemp: bestHour.temp };
     }
 
     if (bestHour.temp > prefs.maxTemp) {
         console.log(`!! Heat fail: ${bestHour.temp}° > ${prefs.maxTemp}°`);
-        return { success: false, reason: 'hot' };
+        return { success: false, reason: 'hot', avgClouds: bestHour.clouds, avgTemp: bestHour.temp };
     }
 
     let durationHours = 0;

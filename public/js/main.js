@@ -257,7 +257,7 @@ async function initAI() {
     const statusText = document.getElementById('ai-status-text');
     const siteCard = document.querySelector('site-card');
     const dropDown = document.querySelector('.drop-down-info');
-    const MODEL_VERSION = "2.2.6_moon_adjustments";
+    const MODEL_VERSION = "2.2.6.2.8_cleanup_trainer";
     const STORE_PATH = "indexeddb://stella-model";
 
     try{
