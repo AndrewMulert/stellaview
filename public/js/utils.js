@@ -58,7 +58,7 @@ export function normalizeTempContextual(currentTemp, minPref, maxPref, seasonalM
 export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, prefs, aqiStatus, startOffset, siteNDVI, trustFactor = 0.5, moonIsUpNow, seasonalMean) {
     const safeRad = (typeof radiance === 'number' && !isNaN(radiance)) ? radiance : 0.01;
     const logRad = Math.log10(safeRad + 1);
-    const normRadiance = Math.max(0, 1 - (logRad / 2.5));
+    const normRadiance = Math.max(0, 1 - (logRad / 2.1));
 
    const safeNDVI = (typeof siteNDVI === 'number' && !isNaN(siteNDVI)) ? siteNDVI : 0.4;
    const normNDVI = Math.max(0.1, 1.0 - Math.abs(safeNDVI - 0.4) * 2);
@@ -73,23 +73,28 @@ export function normalizeInputs(radiance, site, weather, moonIllum, travelTime, 
     const mIllum = (moonIllum !== undefined) ? moonIllum : 1.0;
     const normMoon = moonIsUpNow ? Math.pow(1 - mIllum, 2) : 1.0;
 
-    const currentTempF = (prefs.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
-    const normTemp =  normalizeTempContextual(currentTempF, prefs.minTemp, prefs.maxTemp, seasonalMean);
+    const minTempPref = prefs?.minTemp ?? 32;
+    const maxTempPref = prefs?.maxTemp ?? 80;
+    const currentTempF = (prefs?.tempUnit === 'celsius') ? calculateFahrenheit(weather.avgTemp) : weather.avgTemp;
+    const normTemp = normalizeTempContextual(currentTempF, minTempPref, maxTempPref, seasonalMean);
 
     const validMean = (seasonalMean && seasonalMean !== 0) ? seasonalMean : currentTempF;
-    const normSeasonal = Math.max(0, Math.min(1, seasonalMean / 120));
+    const normSeasonal = Math.max(0, Math.min(1, validMean / 120));
     const tempDeviation = Math.max(-1, Math.min(1, (currentTempF - validMean) / 30));
     if (isNaN(tempDeviation)) console.error("Temp Deviation is NaN! Check seasonalMean.");
 
-    const normStart = Math.max(0, 1 -(startOffset / 12));
+    const normStart = Math.max(0, 1 - (startOffset / 12));
     const duration = weather.duration || 0;
     const normDuration = Math.min(duration / 8, 1);
 
     const maxLimit = prefs.maxDriveTime || 120;
     const travelRatio = travelTime / maxLimit;
-    const normTravel = Math.max(0, Math.sqrt(1 - Math.min(1, travelRatio)));
+    const normTravel = Math.max(0, Math.pow(1 - Math.min(1, travelRatio), 0.35));
 
-    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor, (site.userRating / 5 || 0.5 ), (site.userRating / 5 || 0.5), normTravel, normDuration, normStart, (moonIsUpNow ? 1 : 0), normSeasonal, tempDeviation ];
+    const livePublicRating = (site.publicRating !== undefined && site.publicRating !== null) ? site.publicRating : 3.0;
+    const liveUserRating = (site.userRating !== undefined && site.userRating !== null) ? site.userRating: 3.0;
+
+    return [normRadiance, normNDVI, normClouds, normAQI, normMoon, normTemp, trustFactor, livePublicRating / 5, liveUserRating / 5, normTravel, normDuration, normStart, (moonIsUpNow ? 1 : 0), normSeasonal, tempDeviation ];
 }
 
 export async function getRadianceValue(lat, lon, manifestTiles) {

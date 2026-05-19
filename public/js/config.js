@@ -54,5 +54,5 @@ export async function getActivePrefs(loggedInUser = null) {
         lastSource = currentSource;
     }
 
-    return { DEFAULT_PREFS, accessLevel: 0 };
+    return { ...DEFAULT_PREFS, accessLevel: 0 };
 }
