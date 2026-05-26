@@ -952,7 +952,7 @@ main {
 }
 #register_form .cta_btn {
   max-width: 200px;
-  height: 44px;
+  height: 35px;
   padding: 0px 20px;
   background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(131, 131, 131, 0.1));
   backdrop-filter: blur(12px);
