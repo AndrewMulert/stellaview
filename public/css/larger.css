@@ -267,12 +267,17 @@ main {
 }
 .nav_search_bar {
   display: flex !important;
+  padding: 0;
   height: 50px;
   width: 220px;
   align-items: center;
   flex-direction: row;
   flex-wrap: nowrap;
-  overflow: visible;
+  overflow: hidden;
+  border-radius: 25px;
+  background-color: #ffffff;
+  box-sizing: border-box;
+  transition: box-shadow 0.3s ease;
 }
 .nav_search_bar button {
   box-sizing: border-box;
@@ -286,7 +291,7 @@ main {
   margin: 0px;
   display: flex;
   flex-shrink: 0;
-  background-color: #ffffff;
+  background-color: transparent;
 }
 .nav_search_bar input {
   box-sizing: border-box;
@@ -296,10 +301,13 @@ main {
   border-radius: 25px 0px 0px 25px;
   border: 0px;
   font-size: 18px;
-  width: 170px;
   line-height: 40px;
   margin: 0px;
-  flex-shrink: 0;
+  background-color: white;
+  width: 100%;
+}
+.nav_search_bar:has(input:focus) {
+  box-shadow: 0px 0px 10px 5px var(--bg-glow);
 }
 
 .rotate-chevron {
@@ -762,8 +770,16 @@ main {
   font-weight: 400;
 }
 
+#location_input {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 #location_input:focus {
   border: none;
+  outline: none;
+  background-color: #ffffff;
+  color: #000000;
 }
 
 #logged_in_view {
@@ -1168,6 +1184,9 @@ main {
   }
 }
 @media screen and (min-width: 40em) {
+  .nav_search_bar {
+    width: 310px;
+  }
   .nav_search_bar input {
     width: 250px;
   }

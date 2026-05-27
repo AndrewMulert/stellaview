@@ -3,6 +3,7 @@
 @media screen and (min-width: 40em) {
     .nav {
         &_search_bar {
+            width: 310px;
             & input{
                 width: 250px;
             }
