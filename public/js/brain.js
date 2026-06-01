@@ -72,29 +72,6 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
 
     const { start: windowStart, end: windowEnd } = getStargazingWindow(lat, lon, prefs)
     const hourKey = windowStart.getHours();
-
-    /*const tomorrowDawn = new Date();
-    tomorrowDawn.setDate(tomorrowDawn.getDate() + 1);
-    tomorrowDawn.setHours(5, 0, 0, 0);
-    const astroDawn = sunTimes.astronomicalDawn ? new Date(sunTimes.astronomicalDawn) : tomorrowDawn;
-
-    let userHomeCutoff = new Date(astroDusk);
-
-    if (prefs.latestStayOut) {
-        const [hours, minutes] = (prefs.latestStayOut || "02:00").split(':');
-        let prefDate = new Date(astroDusk);
-        prefDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        if (parseInt(hours) < 12) prefDate.setDate(prefDate.getDate() + 1);
-        userHomeCutoff = prefDate < astroDawn ? prefDate : astroDawn;
-    }
-    
-    const bufferTime = (prefs.departureLeadTime || 30) * 60 * 1000;
-    const travelPadding = 60 * 60 * 1000;
-    let windowEnd = new Date(userHomeCutoff.getTime() - travelPadding - bufferTime);
-    const minimumWindowEnd = new Date(windowStart.getTime() + (60 * 60 * 1000));
-    if (windowEnd < minimumWindowEnd) {
-        windowEnd = minimumWindowEnd;
-    }*/
     
 
     console.log(`🌌 Search Window: ${windowStart.toLocaleTimeString()} to ${windowEnd.toLocaleTimeString()}`);
@@ -207,6 +184,7 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
     });
 
     const queue = [...semiFilteredSites.entries()];
+    const totalToProcess = semiFilteredSites.length;
 
     const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
@@ -225,7 +203,8 @@ export async function predictWithBrain(model, allSites, userLoc, prefs, preFetch
             }
 
             if (statusText) {
-                let overallProgress = Math.round((completedCount / semiFilteredSites.length) * 100);
+                const currentCount = tracker ? tracker.completed: completedCount;
+                const overallProgress = Math.round((currentCount / totalToProcess) * 100);
                 statusText.innerText = `🧠 Evaluating Sites... ${overallProgress}%`;
                 /*let overallProgress = 0;
                 if (context && context.mode === 'weekly') {

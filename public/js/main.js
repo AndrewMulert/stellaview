@@ -257,7 +257,7 @@ async function initAI() {
     const statusText = document.getElementById('ai-status-text');
     const siteCard = document.querySelector('site-card');
     const dropDown = document.querySelector('.drop-down-info');
-    const MODEL_VERSION = "2.2.6.4.4_rebalance_algorithm";
+    const MODEL_VERSION = "2.2.7_trainer_cleanup";
     const STORE_PATH = "indexeddb://stella-model";
 
     try{

@@ -81,6 +81,8 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
         const maxPossibleRatingPoints = 2.0;
         const currentRatingPoints = (scenario.publicRating / 5) + (scenario.userRating / 5);
 
+        const maxPossiblePoints = 30 + 20 + 30 + 20 + 20 + 10 + 10 + 1 + 10 + 5 + 2.0;
+
         let score = (darknessFactor * 30)
             + (scenario.trustFactor * 20)
             + (normClouds * 30)
@@ -93,19 +95,29 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             + (normAQI * 5)
             + currentRatingPoints;
 
-        let moonPenalty = 1.0;
+        let environmentalMultiplier = 1.0;
+
         if (scenario.isMoonUp === 1) {
-           moonPenalty = Math.max(0.1, 1.0 - Math.pow(scenario.illumination, 2));
-    
-            if (scenario.illumination > 0.7) {
-                moonPenalty *= 0.5;
+           let moonLoss = Math.max(0.15, 1.0 - Math.pow(scenario.illumination, 1.5));
+            if (scenario.illumination > 0.85) {
+                moonLoss *= 0.25;
+            } else if (scenario.illumination > 0.50) {
+                moonLoss *= 0.50;
             }
+            environmentalMultiplier *= moonLoss;
         }
 
-        score *= moonPenalty;
+        if (scenario.temp < minTemp) {
+            environmentalMultiplier *= 0.90;
+        }
+        if (scenario.trustFactor < 0.6) {
+            environmentalMultiplier *= 0.85;
+        }
+        if (scenario.travelTime > maxDrive) {
+            environmentalMultiplier *= 0.75;
+        }
 
-        if (scenario.isMoonUp === 1 && scenario.illumination > 0.85) score *= 0.2;
-        if (scenario.temp < minTemp) score *= 0.85;
+        score *= environmentalMultiplier;
 
         if (scenario.clouds > 80 || scenario.pm25 > 120) {
             score = 0;
@@ -113,12 +125,8 @@ export function generateMockHistory(numSamples = 1000, prefs = null) {
             score *= 0.5;
         }
 
-        if (scenario.trustFactor < 0.6 ) score *= 0.85;
-        if (scenario.travelTime > maxDrive) score *= 0.8;
-
-        const baseScore = score / 159;
-        const normalizedOutput = Math.max(0, Math.min(1, baseScore *1.15) + (Math.random() - 0.5) * 0.02); 
-
+        const baseScore = score / maxPossiblePoints;
+        const normalizedOutput = Math.max(0.01, Math.min(1.00, baseScore + (Math.random() - 0.5) * 0.01));
         if (i === 0) {
             console.log("🏋️ Trainer.js Sample Input Vector Structure:", inputVector);
         }
