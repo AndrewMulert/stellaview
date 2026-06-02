@@ -963,6 +963,11 @@ main {
   mix-blend-mode: hard-light;
 }
 
+#profile_menu {
+  height: 30px;
+  width: 30px;
+}
+
 #register_form {
   display: grid;
   grid-template-rows: 31px 5px 31px 5px 37px;

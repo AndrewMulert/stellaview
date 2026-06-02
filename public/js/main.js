@@ -11,9 +11,15 @@ const decisionSpan = document.querySelector("#hero_decision");
 const SEARCH_COOLDOWN = 15000;
 const timeSpan = document.querySelector("#home_time");
 const yearSpan = document.querySelector("#year");
-let lastSearchTime = 0;
-let wakeLock = null;
+let autocompleteTimeout = null;
+let autocompleteAbortController = null;
+let activeAbortController = null;
 let cachedPrefs = null;
+let currentSearchId = 0;
+let currentUser = null;
+let lastSearchTime = 0;
+let trainedModel = null;
+let wakeLock = null;
 
 if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
@@ -168,14 +174,13 @@ async function updateThemeByTime() {
         const glowColor = brighten(r1, g1, b1, 0.5);
 
         const invertValue = (textColor === '#000000') ? '100%' : '0%';
-        const root = document.documentElement;
         root.style.setProperty('--bg-start', `rgba(${r1}, ${g1}, ${b1}, 0.5)`);
         root.style.setProperty('--bg-end', `rgba(${r2}, ${g2}, ${b2}, 0.5)`);
         root.style.setProperty('--bg-glow', `rgba(${glowColor}, 0.8)`);
 
         root.style.setProperty('--accent-color', textColor);
         root.style.setProperty('--icon-invert', invertValue);
-    } catch {
+    } catch (error){
         console.warn("Theme calculation failed, applying fallback:", error);
 
         root.style.setProperty('--bg-start', `rgba(${fallbackTheme.r1}, ${fallbackTheme.g1}, ${fallbackTheme.b1}, 0.5)`);
@@ -235,11 +240,6 @@ function updateMoonPhaseIcon() {
     const tooltipText = `${label} (${illumination}% Illumination)`;
     moonTooltip.setAttribute("title", tooltipText);
 }
-
-let trainedModel = null;
-let currentSearchId = 0;
-let activeAbortController = null;
-let currentUser = null;
 
 async function requestWakeLock() {
     try {
@@ -524,6 +524,28 @@ function displayResults(sites, prefs) {
     });
 };
 
+async function executeDirectSearch(lat, lon, displayName) {
+    if (activeAbortController) activeAbortController.abort();
+    if (autocompleteAbortController) autocompleteAbortController.abort();
+
+    currentSearchId++;
+    const thisSearchId = currentSearchId;
+
+    resetSearchUI();
+    const statusText = document.getElementById('ai-status-text');
+    if (statusText) statusText.innerText = "📌 Location found...";
+
+    try {
+        const newCoords = { lat: parseFloat(lat), lon: parseFloat(lon) };
+        console.log("Processing location:", displayName);
+
+        const prefs = await getActivePrefs(window.currentUser);
+        await updateUI(newCoords, prefs, thisSearchId);
+    } catch (err) {
+        console.error("Direct UI updates failed:", err);
+    }
+}
+
 async function handleSearch() {
     const now = Date.now();
     if (now - lastSearchTime < SEARCH_COOLDOWN) {
@@ -536,8 +558,11 @@ async function handleSearch() {
     const query = document.querySelector("#location_input").value;
     if (!query) return;
 
-    lastSearchTime = Date.now();
+    clearTimeout(autocompleteTimeout);
+    if (autocompleteAbortController) autocompleteAbortController.abort();
+    clearDropdown();
 
+    lastSearchTime = Date.now();
     currentSearchId++;
     const thisSearchId = currentSearchId;
 
@@ -602,7 +627,7 @@ async function handleSearch() {
             statusText.innerText = "📌 Location found...";
 
             const prefs = await getActivePrefs(window.currentUser);
-            await updateUI(newCoords, prefs);
+            await updateUI(newCoords, prefs, thisSearchId);
 
         } else {
             alert("Location not found. Try a different city!");
@@ -614,6 +639,57 @@ async function handleSearch() {
         const statusText = document.getElementById('ai-status-text');
         statusText.innerText = "⚠️ Search Failed. Try Again";
     }
+}
+
+async function fetchSuggestions(query) {
+    if (autocompleteAbortController) {
+        autocompleteAbortController.abort();
+    }
+    autocompleteAbortController = new AbortController();
+
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`;
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'StellaView-App' },
+            signal: autocompleteAbortController.signal
+        });
+        const data = await response.json();
+
+        renderDropdown(data);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error("Autocomplete fetch failed:", err);
+        }
+    }
+}
+
+function renderDropdown(locations) {
+    const dropdown = document.querySelector("#autocomplete_dropdown");
+    if (!dropdown) return;
+
+    dropdown.innerHTML = "";
+
+    if (locations.length === 0) {
+        dropdown.classList.add("hidden");
+        return;
+    }
+
+    locations.forEach(loc => {
+        const item = document.createElement("div");
+        item.className = "dropdown-item";
+        item.textContent = loc.display_name;
+
+        item.addEventListener("click", () => {
+            document.querySelector("#location_input").value = loc.display_name;
+            clearDropdown();
+
+            executeDirectSearch(loc.lat, loc.lon, loc.display_name);
+        });
+
+        dropdown.appendChild(item);
+    });
+
+    dropdown.classList.remove("hidden");
 }
 
 const updateUI = async (coords, prefs, sessionId = null) => {
@@ -821,7 +897,7 @@ function renderFeaturedSite(site, container) {
             <a href="${site.mapUrl}" target="_blank"><svg id="featured_details_svg" width="20px" height="20px"><image width="20px" height="20px" href="/images/icon_info_directions.svg"></image></svg></a>
             <a class="card_link" href="${site.mapUrl}" target="_blank"><strong>Directions</strong></a>
         </div>
-    `
+    </div>`;
 }
 
 async function syncSearchResults(coords, sites) {
@@ -938,7 +1014,52 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error("❌ Could not find stella-map element in the DOM.");
     }
+
+    const locationInput = document.querySelector("#location_input");
+    if (locationInput) {
+        locationInput.addEventListener("input", (e) => {
+            const query = e.target.value.trim();
+            clearTimeout(autocompleteTimeout);
+
+            if (query.length < 3) {
+                clearDropdown();
+                return;
+            }
+
+            autocompleteTimeout = setTimeout(() => {
+                fetchSuggestions(query);
+            }, 400);
+        });
+    }
 });
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#location_input') && !e.target.closest('#autocomplete_dropdown')) {
+        clearDropdown();
+    }
+})
+
+function clearDropdown() {
+    const dropdown = document.querySelector("#autocomplete_dropdown");
+    if (dropdown) {
+        dropdown.innerHTML = "";
+        dropdown.classList.add("hidden");
+    }
+};
+
+function resetSearchUI() {
+    document.querySelector('.drop-down-info')?.classList.add('hidden');
+    document.querySelector('#ai-loader')?.classList.remove('hidden');
+    document.querySelector('.spinner')?.classList.remove('hidden');
+    
+    const featuredSpan = document.querySelector("#feature-container");
+    if (featuredSpan) { featuredSpan.classList.add('hidden'); featuredSpan.innerHTML = ""; }
+    
+    const container = document.querySelector("#results-container");
+    if (container) { container.classList.add('hidden'); container.innerHTML = ""; }
+    
+    document.querySelector("#weekly_outlook")?.classList.add('hidden');
+}
 
 document.getElementById('hero_details').addEventListener('click', () => {
     const drawer = document.getElementById('stella-drawer');

@@ -62,7 +62,8 @@ const getNav = (user = null) => {
             </li>
             <li class="nav_link_container" id="nav_search">
                 <div class="nav_search_bar">
-                    <input type="text" id="location_input" placeholder="Search a city">
+                    <input type="text" id="location_input" placeholder="Search a city" autocomplete="off">
+                    <!--<div id="autocomplete_dropdown" class="autocomplete-dropdown hidden"></div>-->
                     <button id="search_btn">
                         <svg id="search_svg" width="30px" height="30px">
                             <image width="30px" height="30px" href="/images/icon_search.svg" alt="Search"></image>
