@@ -503,8 +503,8 @@ function displayResults(sites, prefs) {
         `;
 
         card.addEventListener('mouseenter', () => {
-            const markerClass = `.marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`;
-            const marker = document.querySelector(markerClass);
+            const markerName = site.name.replace(/[^a-zA-Z0-9 -]/g, '').replace(/\s+/g, '-').toLowerCase();
+            const marker = document.querySelector(`.marker-${markerName}`);
             if (marker){
                 marker.style.transform = "scale(1.8)";
                 marker.style.transition = "transform 0.2s ease";
@@ -513,8 +513,8 @@ function displayResults(sites, prefs) {
         });
 
         card.addEventListener('mouseleave', () => {
-            const markerClass = `.marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`;
-            const marker = document.querySelector(markerClass);
+            const markerName = site.name.replace(/[^a-zA-Z0-9 -]/g, '').replace(/\s+/g, '-').toLowerCase();
+            const marker = document.querySelector(`.marker-${markerName}`);
             if (marker){
                 marker.style.transform = "scale(1)";
             }

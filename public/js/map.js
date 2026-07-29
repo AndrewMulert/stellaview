@@ -127,6 +127,8 @@ window.updateMapMarkers = function(sites) {
     sites.forEach(site => {
         const dynamicColor = getScoreColor(site.score);
 
+        const markerName = site.name.replace(/[^a-zA-Z0-9 -]/g, '').replace(/\s+/g, '-').toLowerCase();
+
         const marker = L.circleMarker([site.lat, site.lon], {
             radius: 8,
             fillColor: dynamicColor,
@@ -134,7 +136,7 @@ window.updateMapMarkers = function(sites) {
             weight: 2,
             opacity: 1,
             fillOpacity: 0.9,
-            className: `marker-${site.name.replace(/\s+/g, '-').toLowerCase()}`
+            className: `marker-${markerName}`
         });
 
         marker.bindTooltip(site.name, {
