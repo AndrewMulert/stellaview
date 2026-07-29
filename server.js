@@ -24,6 +24,8 @@ const port = process.env.PORT;
 
 const app = express();
 
+app.locals.isProduction = process.env.NODE_ENV === 'production';
+
 app.use(configNodeEnv);
 
 configureStaticPaths(app);
